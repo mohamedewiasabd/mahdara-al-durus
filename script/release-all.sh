@@ -17,6 +17,8 @@ cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 
 export PATH="$HOME/.nvm/versions/node/v22.22.0/bin:$PATH"
+export ANDROID_HOME="${ANDROID_HOME:-$HOME/Android/Sdk}"
+export JAVA_HOME="${JAVA_HOME:-/usr/lib/jvm/java-21-openjdk-amd64}"
 
 JS_GRADLE="android/app/build/outputs"
 APK="$ROOT/release/apk"
