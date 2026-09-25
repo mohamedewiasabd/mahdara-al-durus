@@ -1,0 +1,38 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+
+# Android secrets & local config — NEVER commit
+android/keystore.properties
+android/local.properties
+android/keystore/
+android/.gradle/
+android/captures/
+release/keystore/
+
+# Release build artifacts (APKs / AABs / desktop / IPA)
+release/apk/
+release/play/
+release/desktop/
+release/ipa/
+
+# Tauri — build outputs & generated schemas & generated icons
+src-tauri/target/
+src-tauri/gen/
+src-tauri/icons/android/
+src-tauri/icons/ios/
+
+# iOS (Capacitor) — build outputs
+ios/App/Pods/
+ios/App/DerivedData/
+ios/App/build/
+ios/App/App.xcworkspace/
+*.xcuserstate
+
+# سجل تشغيل البروتوكول الإلزامي
+.release-last.log

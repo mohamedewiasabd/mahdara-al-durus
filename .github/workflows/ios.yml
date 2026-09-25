@@ -1,0 +1,116 @@
+name: iOS (iPhone / iPad)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      VITE_GEMINI_API_KEY: ${{ secrets.VITE_GEMINI_API_KEY }}
+      APPLE_CERT_P12: ${{ secrets.APPLE_CERT_P12 }}
+      APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+      APPLE_PROFILE_MOBILEPROVISION: ${{ secrets.APPLE_PROFILE_MOBILEPROVISION }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install npm dependencies
+        run: npm install
+
+      - name: Patch plugins Swift API (NonescapableTypes)
+        run: |
+          node --input-type=module -e '
+            import { readFileSync, writeFileSync } from "node:fs";
+            const targets = {
+              filesystem:   { pkg: "FilesystemPlugin",   file: "ios/Sources/FilesystemPlugin.swift" },
+              share:        { pkg: "SharePlugin",        file: "ios/Sources/SharePlugin.swift" },
+              "splash-screen": { pkg: "SplashScreenPlugin", file: "ios/Sources/SplashScreenPlugin.swift" },
+            };
+            for (const [name, t] of Object.entries(targets)) {
+              const f = `node_modules/@capacitor/${name}/Package.swift`;
+              let s = readFileSync(f, "utf8");
+              s = s.replace(
+                `path: "ios/Sources/${t.pkg}"),`,
+                `path: "ios/Sources/${t.pkg}", swiftSettings: [.enableExperimentalFeature("NonescapableTypes")]),`
+              );
+              writeFileSync(f, s);
+            }
+            console.log("patched 3 plugin Package.swift files");
+          '
+
+      - name: Lint + Web build
+        run: npm run lint && npm run build
+
+      - name: Capacitor sync iOS
+        run: npx cap sync ios
+
+      - name: Install Apple certificate into keychain
+        if: env.APPLE_CERT_P12 != ''
+        run: |
+          mkdir build
+          echo "$APPLE_CERT_P12" | base64 --decode > build/cert.p12
+          echo "$APPLE_PROFILE_MOBILEPROVISION" | base64 --decode > build/profile.mobileprovision
+          mkdir -p "$HOME/Library/MobileDevice/Provisioning Profiles"
+          cp build/profile.mobileprovision "$HOME/Library/MobileDevice/Provisioning Profiles/$(uuidgen).mobileprovision"
+          security create-keychain -p "github-actions" build/build.keychain
+          security default-keychain -s build/build.keychain
+          security unlock-keychain -p "github-actions" build/build.keychain
+          security import build/cert.p12 -k build/build.keychain -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple: -s -k "github-actions" build/build.keychain
+
+      - name: Build App (unsigned verification)
+        run: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj \
+                     -scheme App \
+                     -configuration Release \
+                     -sdk iphoneos \
+                     -derivedDataPath build \
+                     CODE_SIGNING_ALLOWED=NO \
+                     build
+
+      - name: Upload unsigned .app
+        if: env.APPLE_CERT_P12 == ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: mahdara-ios-app-unsigned
+          path: |
+            ios/App/build/Build/Products/Release-iphoneos/*.app
+            ios/App/build/Build/Products/Release-iphoneos/*.dSYM
+          if-no-files-found: warn
+
+      - name: Archive + export signed IPA
+        if: env.APPLE_CERT_P12 != ''
+        run: |
+          cd ios/App
+          xcodebuild -project App.xcodeproj \
+                     -scheme App \
+                     -configuration Release \
+                     -destination 'generic/platform=iOS' \
+                     -archivePath build/App.xcarchive \
+                     DEVELOPMENT_TEAM="$APPLE_TEAM_ID" \
+                     archive
+          plutil -create xml1 ExportOptions.plist
+          plutil -insert method -string app-store-connect ExportOptions.plist
+          plutil -insert signingStyle -string automatic ExportOptions.plist
+          xcodebuild -exportArchive \
+                     -archivePath build/App.xcarchive \
+                     -exportOptionsPlist ExportOptions.plist \
+                     -exportPath build/ipa
+
+      - name: Upload signed IPA
+        if: env.APPLE_CERT_P12 != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: mahdara-ios-ipa-signed
+          path: ios/App/build/ipa/*.ipa
+          if-no-files-found: error
