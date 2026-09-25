@@ -1,0 +1,88 @@
+{
+  "id": "org.mahdara.durus",
+  "runtime": "org.gnome.Platform",
+  "runtime-version": "48",
+  "sdk": "org.gnome.Sdk",
+  "command": "mahdara-al-durus",
+  "finish-args": [
+    "--share=ipc",
+    "--share=network",
+    "--socket=x11",
+    "--socket=wayland",
+    "--device=dri",
+    "--filesystem=home",
+    "--socket=pulseaudio",
+    "--talk-name=org.freedesktop.Notifications"
+  ],
+  "modules": [
+    {
+      "name": "node",
+      "buildsystem": "simple",
+      "build-commands": [
+        "mv node-v22.20.0-linux-x64 /app/node",
+        "ln -sf /app/node/bin/node /app/bin/node",
+        "ln -sf /app/node/bin/npm /app/bin/npm",
+        "ln -sf /app/node/bin/npx /app/bin/npx"
+      ],
+      "sources": [
+        {
+          "type": "archive",
+          "only-arches": ["x86_64"],
+          "url": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-linux-x64.tar.xz",
+          "sha256": "00bbd05e306ea68b6e13e17360d0e2f680b493ef95f2fea1c4296ff7437530bc"
+        },
+        {
+          "type": "archive",
+          "only-arches": ["aarch64"],
+          "url": "https://nodejs.org/dist/v22.20.0/node-v22.20.0-linux-arm64.tar.xz",
+          "sha256": "06907b9c088ce62305bc1530e5c1ae1510245114645768f7750c349c5b6fe667"
+        }
+      ]
+    },
+    {
+      "name": "rust",
+      "buildsystem": "simple",
+      "build-commands": [
+        "chmod +x rustup-init",
+        "RUSTUP_HOME=/app/rustup CARGO_HOME=/app/cargo ./rustup-init -y --profile minimal --default-toolchain stable --no-modify-path",
+        "ln -sf /app/cargo/bin/* /app/bin/"
+      ],
+      "sources": [
+        {
+          "type": "file",
+          "only-arches": ["x86_64"],
+          "url": "https://static.rust-lang.org/rustup/dist/x86_64-unknown-linux-gnu/rustup-init",
+          "sha256": "dda7234360b7f578ca8b0ddcb80145646fa61a67c1720a5abc7051b35c9fcb71"
+        },
+        {
+          "type": "file",
+          "only-arches": ["aarch64"],
+          "url": "https://static.rust-lang.org/rustup/dist/aarch64-unknown-linux-gnu/rustup-init",
+          "sha256": "15f6e4ce9f583b929c996c91562bad6d4454f3281de858b02cdfdef615fac433"
+        }
+      ]
+    },
+    {
+      "name": "mahdara-al-durus",
+      "buildsystem": "simple",
+      "build-commands": [
+        "export PATH=/app/bin:$PATH RUSTUP_HOME=/app/rustup CARGO_HOME=/app/cargo",
+        "export VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY:-}",
+        "npm ci",
+        "npm run build",
+        "cd src-tauri && cargo build --release",
+        "install -Dm755 src-tauri/target/release/mahdara-al-durus /app/bin/mahdara-al-durus",
+        "install -Dm644 packaging/flathub/share/applications/org.mahdara.durus.desktop /app/share/applications/",
+        "install -Dm644 packaging/flathub/share/metainfo/org.mahdara.durus.metainfo.xml /app/share/metainfo/",
+        "install -Dm644 packaging/flathub/share/icons/hicolor/256x256/apps/org.mahdara.durus.png /app/share/icons/hicolor/256x256/apps/"
+      ],
+      "sources": [
+        {
+          "type": "git",
+          "url": "https://github.com/mohamedewiasabd/mahdara-al-durus",
+          "tag": "v1.1.0"
+        }
+      ]
+    }
+  ]
+}

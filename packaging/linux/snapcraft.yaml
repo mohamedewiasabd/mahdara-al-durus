@@ -1,0 +1,58 @@
+name: mahdara-al-durus
+base: core24
+adopt-info: mahdara-al-durus
+grade: stable
+confinement: strict
+
+apps:
+  mahdara-al-durus:
+    command: mahdara-al-durus.Tauri
+    extensions: [gnome]
+    plugs:
+      - network
+      - home
+      - audio-playback
+      - desktop
+      - desktop-legacy
+      - wayland
+      - x11
+      - opengl
+      - unity7
+
+parts:
+  mahdara-al-durus:
+    plugin: nil
+    source: https://github.com/mohamedewiasabd/mahdara-al-durus.git
+    source-type: git
+    source-tag: v1.1.0
+    build-packages:
+      - curl
+      - ca-certificates
+      - pkg-config
+      - libwebkit2gtk-4.1-dev
+      - build-essential
+      - libssl-dev
+      - libayatana-appindicator3-dev
+      - librsvg2-dev
+      - libgtk-3-dev
+    override-pull: |
+      curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
+      apt-get install -y nodejs
+      curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal
+    override-build: |
+      export PATH="$PATH:$HOME/.cargo/bin"
+      npm ci
+      npm run build
+      cd src-tauri
+      npm run tauri -- build --no-bundle
+      cd ..
+      install -Dm755 src-tauri/target/release/mahdara-al-durus \
+        "$SNAPCRAFT_PART_INSTALL/bin/mahdara-al-durus.Tauri"
+      install -Dm644 packaging/flathub/share/icons/hicolor/256x256/apps/org.mahdara.durus.png \
+        "$SNAPCRAFT_PART_INSTALL/share/icons/hicolor/256x256/apps/org.mahdara.durus.png"
+      install -Dm644 packaging/flathub/share/applications/org.mahdara.durus.desktop \
+        "$SNAPCRAFT_PART_INSTALL/share/applications/org.mahdara.durus.desktop"
+    stage-packages:
+      - libwebkit2gtk-4.1-0
+      - libgtk-3-0
+      - libayatana-appindicator3-1

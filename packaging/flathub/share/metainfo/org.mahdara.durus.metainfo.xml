@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>org.mahdara.durus</id>
+  <launchable type="desktop-id">org.mahdara.durus.desktop</launchable>
+  <name>محضر الدروس</name>
+  <name xml:lang="en">Mahdara Al-Durus</name>
+  <summary>تطبيق المعلم الذكي لتحويل الكتب والمقررات إلى وحدات ودروس</summary>
+  <summary xml:lang="en">Smart teacher app that turns books and syllabi into lessons</summary>
+  <description>
+    <p>محضر الدروس هو تطبيق ذكي للمعلمين يحوّل الكتب والمقررات إلى وحدات ودروس منضّمة ويحفظها محلياً على جهاز المستخدم.</p>
+    <p xml:lang="en">Mahdara Al-Durus is a smart app for teachers that converts books and syllabi into well-organized lessons stored locally on the user's device.</p>
+  </description>
+  <developer id="com.mahdara">
+    <name>محضر الدروس</name>
+    <name xml:lang="en">Mahdara Al-Durus</name>
+  </developer>
+  <url type="homepage">https://github.com/mohamedewiasabd/mahdara-al-durus</url>
+  <url type="bugtracker">https://github.com/mohamedewiasabd/mahdara-al-durus/issues</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/01-prepare.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/02-present.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/03-tools.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/04-lesson-content.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/05-plan.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/06-attendance.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/07-bank.png</image>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/08-database.png</image>
+    </screenshot>
+  </screenshots>
+  <releases>
+    <release version="1.1.0" date="2026-09-25"/>
+  </releases>
+  <content_rating type="oars-1.1"/>
+</component>

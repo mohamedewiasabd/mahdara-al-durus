@@ -1,0 +1,13 @@
+[Desktop Entry]
+Name=محضر الدروس
+Name[en]=Mahdara Al-Durus
+Comment=تطبيق المعلم الذكي لتحويل الكتب والمقررات إلى وحدات ودروس وحفظها محلياً
+Comment[en]=Smart teacher app to turn books and syllabi into lessons, kept locally
+Keywords=teacher;lesson;plan;classes;education;دروس;مدرس;
+Exec=mahdara-al-durus
+Icon=org.mahdara.durus
+Terminal=false
+Type=Application
+Categories=Education;Office;
+StartupNotify=true
+StartupWMClass=mahdara-al-durus

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="description" content="محضر الدروس — تطبيق ذكي للمعلمين لتحويل الكتب والمقررات إلى وحدات ودروس وحفظها محلياً، مع 12 أداة ذكاء اصطناعي لتحضير وتلخيص وتوليد الخرائط والاختبارات والأنشطة ومتابعة الطلاب." />
+<meta name="theme-color" content="#059669" />
+<title>محضر الدروس — تطبيق المعلم الذكي</title>
+<link rel="icon" type="image/png" href="https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/app-icon-512.png" />
+<style>
+  :root { --emerald:#059669; --teal:#0d9488; --ink:#0f172a; --muted:#475569; --bg:#f8fafc; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif; color:var(--ink); background:var(--bg); line-height:1.7; }
+  header.hero { background:linear-gradient(135deg,var(--emerald),var(--teal)); color:#fff; padding:64px 20px 56px; text-align:center; }
+  .hero .logo { width:96px; height:96px; border-radius:24px; object-fit:cover; box-shadow:0 10px 30px rgba(0,0,0,.25); margin-bottom:18px; }
+  .hero h1 { font-size: clamp(1.8rem, 5vw, 3rem); margin-bottom:8px; }
+  .hero p.sub { font-size:1.1rem; opacity:.95; max-width:720px; margin:0 auto 26px; }
+  .badges { display:flex; flex-wrap:wrap; gap:10px; justify-content:center; }
+  .badge { background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.35); padding:8px 16px; border-radius:999px; font-size:.9rem; }
+  main { max-width:960px; margin:0 auto; padding:48px 20px; }
+  section { margin-bottom:44px; }
+  h2 { font-size:1.5rem; margin-bottom:16px; color:var(--ink); }
+  .step { display:flex; flex-wrap:wrap; gap:12px; margin-bottom:10px; color:var(--muted); align-items:center; }
+  .step code { background:#e2e8f0; border-radius:8px; padding:2px 8px; direction:ltr; display:inline-block; }
+  .features { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
+  .feature { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:16px; box-shadow:0 2px 8px rgba(15,23,42,.04); }
+  .feature b { color:var(--emerald); }
+  .downloads { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; }
+  .card { background:#fff; border:1px solid #e2e8f0; border-radius:16px; padding:18px; }
+  .card h3 { margin-bottom:6px; font-size:1.05rem; }
+  .card ul { list-style:none; margin-top:8px; }
+  .card li { margin-bottom:6px; }
+  .card a { color:var(--teal); text-decoration:none; font-weight:600; }
+  .card a:hover { text-decoration:underline; }
+  .pill { display:inline-block; background:#ecfdf5; color:var(--emerald); border-radius:999px; padding:2px 10px; font-size:.78rem; margin-inline-start:6px; border:1px solid #d1fae5; }
+  footer { border-top:1px solid #e2e8f0; padding:24px 20px; text-align:center; color:var(--muted); font-size:.9rem; }
+  footer a { color:var(--teal); }
+  .note { background:#fffbeb; border:1px solid #fde68a; border-radius:12px; padding:12px 16px; color:#92400e; font-size:.92rem; }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <img class="logo" src="https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/release/store/app-icon-512.png" alt="شعار محضر الدروس" />
+  <h1>محضر الدروس</h1>
+  <p class="sub">التطبيق الذكي للمعلمين: حوّل كتبك ومقرراتك إلى وحدات ودروس منضّمة، مع ١٢ أداة ذكاء اصطناعي للتحضير والتلخيص والخرائط الذهنية والاختبارات والأنشطة ومتابعة الطلاب — وكل بياناتك محفوظة محلياً على جهازك.</p>
+  <div class="badges">
+    <span class="badge">📱 Android</span>
+    <span class="badge">💻 Windows / Linux / macOS</span>
+    <span class="badge">📦 نسخ احتياطي عبر Google Drive</span>
+    <span class="badge">🔒 خصوصية — بياناتك على جهازك</span>
+  </div>
+</header>
+
+<main>
+
+  <section>
+    <h2>التحميل حسب توزيعة لينكس</h2>
+    <div class="step"><code>Ubuntu / Debian</code><span>ملف <code>.deb</code> من صفحة الإصدارات أسفل.</span></div>
+    <div class="step"><code>جميع التوزيعات الحديثة</code><span>ملف <code>.AppImage</code> — نفّذه بعد <code>chmod +x</code>.</span></div>
+    <div class="step"><code>Flatpak / Flathub</code><span>التقديم قيد المراجعة — بمجرد قبوله: <code>flatpak install flathub org.mahdara.durus</code>.</span></div>
+    <div class="step"><code>Arch / AUR</code><span>حزمة <code>PKGBUILD</code> قيد الإضافة إلى AUR.</span></div>
+    <p class="note">جميع روابط التنزيل المباشرة موجودة في صفحة الإصدارات أسفلها (فاتح تُحمَّل تلقائياً من GitHub Releases).</p>
+  </section>
+
+  <section>
+    <h2>التحميل على أجهزة أخرى</h2>
+    <div class="downloads">
+      <div class="card">
+        <h3>Android <span class="pill">متاح</span></h3>
+        <ul>
+          <li><a href="https://play.google.com/store/apps/details?id=com.mahdara.durus">Google Play</a> (قريباً) أو APK / AAB من صفحة الإصدارات.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Windows <span class="pill">متاح</span></h3>
+        <ul>
+          <li>مثبّت <code>.exe</code> أو <code>.msi</code> — لا يحتاج تثبيت إضافي.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>macOS <span class="pill">متاح</span></h3>
+        <ul>
+          <li>ملف <code>.dmg</code> لإصدار Apple Silicon وIntel.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>iPhone / iPad <span class="pill">قريباً</span></h3>
+        <ul>
+          <li>التطبيق جاهز؛ الإتاحة على App Store بعد التوقيع والتقديم.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>ما الذي يقدمه لك التطبيق؟</h2>
+    <div class="features">
+      <div class="feature"><b>تحضير الدروس</b><br/>مخطط درس كامل من محتوى المحاضرة.</div>
+      <div class="feature"><b>الملخصات</b><br/>تلخيص ملزمة أو كتاب في ثوانٍ.</div>
+      <div class="feature"><b>الخرائط الذهنية</b><br/>تحويل الدروس إلى خرائط مفاهيم واضحة.</div>
+      <div class="feature"><b>بنك الأسئلة</b><br/>توليد اختبارات بأنواع متعددة.</div>
+      <div class="feature"><b>الأنشطة الصفية</b><br/>أفكار أنشطة تفاعلية للطلاب.</div>
+      <div class="feature"><b>متابعة الطلاب</b><br/>حضر وسجل ومتابعة لكل طالب.</div>
+      <div class="feature"><b>تقسيم الكتب</b><br/>تحويل كتاب كامل إلى وحدات ودروس.</div>
+      <div class="feature"><b>عرض تقديمي</b><br/>وضع عرض مباشر داخل الحصة.</div>
+      <div class="feature"><b>بدون إنترنت للبيانات</b><br/>كل شيء محفوظ محلياً على جهازك.</div>
+    </div>
+  </section>
+
+  <section>
+    <h2>إشعارات المطوّر</h2>
+    <div class="step"><span>ملف الإعلانات الرسمي:</span> <code><a href="/mahdara-al-durus/app-ads.txt" style="color:var(--teal)">app-ads.txt</a></code></div>
+    <div class="step"><span>سياسة الخصوصية:</span> <code>تُدار من صفحة إعدادات google play</code></div>
+    <div class="step"><span>الكود المصدري:</span> <code><a href="https://github.com/mohamedewiasabd/mahdara-al-durus" style="color:var(--teal)">github.com/mohamedewiasabd/mahdara-al-durus</a></code></div>
+  </section>
+
+  <section>
+    <h2>تنزيل مباشر (GitHub Releases — v1.1.0)</h2>
+    <div class="step"><span>Android (إعلانات حقيقية):</span> <code><a href="https://github.com/mohamedewiasabd/mahdara-al-durus/releases/latest" style="color:var(--teal)">المفضّل: صفحة الإصدارات</a></code></div>
+    <div class="step"><span>أو الروابط المباشرة:</span></div>
+    <div class="step">— <code><a href="https://github.com/mohamedewiasabd/mahdara-al-durus/releases/download/v1.1.0/mahdara-al-durus-release-v1.1.0.apk" style="color:var(--teal)">mahdara-al-durus-release-v1.1.0.apk</a></code></div>
+    <div class="step">— <code><a href="https://github.com/mohamedewiasabd/mahdara-al-durus/releases/download/v1.1.0/mahdara-al-durus_1.1.0_amd64.AppImage" style="color:var(--teal)">mahdara-al-durus_1.1.0_amd64.AppImage</a></code> (لينكس)</div>
+    <div class="step">— <code><a href="https://github.com/mohamedewiasabd/mahdara-al-durus/releases/download/v1.1.0/mahdara-al-durus_1.1.0_x64-setup.exe" style="color:var(--teal)">mahdara-al-durus_1.1.0_x64-setup.exe</a></code> (ويندوز)</div>
+    <div class="step">— <code><a href="https://github.com/mohamedewiasabd/mahdara-al-durus/releases/download/v1.1.0/mahdara-al-durus_1.1.0_aarch64.dmg" style="color:var(--teal)">mahdara-al-durus_1.1.0_aarch64.dmg</a></code> (ماك Apple Silicon)</div>
+  </section>
+
+</main>
+
+<footer>
+  <p>محضر الدروس © 2026 — كود مفتوح المصدر على <a href="https://github.com/mohamedewiasabd/mahdara-al-durus">GitHub</a> · <a href="https://github.com/mohamedewiasabd/mahdara-al-durus/blob/main/releases/PLAY-LISTING.md">قائمة المتجر</a> · <a href="/mahdara-al-durus/app-ads.txt">app-ads.txt</a></p>
+</footer>
+
+</body>
+</html>

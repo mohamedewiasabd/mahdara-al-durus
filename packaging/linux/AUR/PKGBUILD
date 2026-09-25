@@ -1,0 +1,40 @@
+# Maintainer: mohamedewiasabd <mohamedewiasabd@gmail.com>
+# حزمة غلاف: تُنزّل نسخة AppImage الموقعة من GitHub Releases وتثبّتها مع قائمة التطبيق والأيقونة.
+
+pkgname='mahdara-al-durus'
+pkgver='1.1.0'
+pkgrel=1
+pkgdesc="تطبيق المعلم الذكي: تحويل الكتب والمقررات إلى وحدات ودروس وحفظها محلياً (Smart teacher lesson planner)"
+arch=('x86_64')
+url='https://github.com/mohamedewiasabd/mahdara-al-durus'
+license=('custom')
+depends=('fuse2' 'libappindicator-gtk3')
+source=(
+  "mahdara-al-durus_${pkgver}_amd64.AppImage::https://github.com/mohamedewiasabd/mahdara-al-durus/releases/download/v${pkgver}/mahdara-al-durus_${pkgver}_amd64.AppImage"
+  "org.mahdara.durus.desktop::https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/packaging/flathub/share/applications/org.mahdara.durus.desktop"
+  "org.mahdara.durus.png::https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/packaging/flathub/share/icons/hicolor/256x256/apps/org.mahdara.durus.png"
+)
+noextract=(
+  "mahdara-al-durus_${pkgver}_amd64.AppImage"
+  "org.mahdara.durus.desktop"
+  "org.mahdara.durus.png"
+)
+sha256sums=(
+  'c8380e47eadb1a7d08430a229ad81c9aa23fed9ef3827b086a4dc3aa4a42d0a2'
+  'SKIP'
+  'SKIP'
+)
+
+package() {
+  install -Dm755 "${srcdir}/mahdara-al-durus_${pkgver}_amd64.AppImage" \
+    "${pkgdir}/usr/share/mahdara-al-durus/mahdara-al-durus.AppImage"
+  ln -s /usr/share/mahdara-al-durus/mahdara-al-durus.AppImage \
+    "${pkgdir}/usr/bin/mahdara-al-durus"
+
+  install -Dm644 "${srcdir}/org.mahdara.durus.desktop" \
+    "${pkgdir}/usr/share/applications/org.mahdara.durus.desktop"
+  install -Dm644 "${srcdir}/org.mahdara.durus.png" \
+    "${pkgdir}/usr/share/icons/hicolor/256x256/apps/org.mahdara.durus.png"
+  sed -i 's#^Exec=mahdara-al-durus#Exec=/usr/bin/mahdara-al-durus#' \
+    "${pkgdir}/usr/share/applications/org.mahdara.durus.desktop"
+}
