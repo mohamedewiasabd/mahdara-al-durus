@@ -68,7 +68,6 @@ else
 fi
 
 VFILE="v${VERSION}"
-APK_TEST="mahdara-al-durus-test-ads-${VFILE}.apk"
 APK_RELEASE="mahdara-al-durus-release-${VFILE}.apk"
 AAB_PLAY="mahdara-al-durus-release-${VFILE}.aab"
 
@@ -144,15 +143,12 @@ npm run lint
 npm run build
 ok "الويب بني"
 
-# ── الخطوة 2: إصدارات Android الأربعة ───────────────────────────────────
-log "الخطوة 2أ — النسخة التجريبية (إعلانات اختبار)"
-VITE_ADS_TEST_MODE=true npm run build >/dev/null
-npx cap sync android >/dev/null
-( cd android && ./gradlew assembleRelease --console=plain -q )
-cp "$JS_GRADLE/apk/release/app-release.apk" "$APK/$APK_TEST"
-ok "test-ads $VFILE"
+# ── الخطوة 2: إصدارات Android ────────────────────────────────────────────
+#  ملاحظة: اختيار معرّفات الإعلانات يتم وقت التشغيل عبر BuildConfig.DEBUG —
+#  نسخة Debug تستخدم معرّفات Google الاختبارية، ونسخة Release تستخدم
+#  معرّفات AdMob الحقيقية (لا يوجد VITE_ADS_TEST_MODE في هذا المشروع).
 
-log "الخطوة 2ب — النسخة الحقيقية + ملف البلاي (AAB)"
+log "الخطوة 2أ — النسخة الحقيقية + ملف البلاي (AAB)"
 npm run build >/dev/null
 npx cap sync android >/dev/null
 ( cd android && ./gradlew assembleRelease bundleRelease --console=plain -q )
@@ -160,7 +156,7 @@ cp "$JS_GRADLE/apk/release/app-release.apk" "$APK/$APK_RELEASE"
 cp "$JS_GRADLE/bundle/release/app-release.aab" "$PLAY/$AAB_PLAY"
 ok "release $VFILE + AAB"
 
-log "الخطوة 2ج — نسخة التطوير (Debug)"
+log "الخطوة 2ب — نسخة التطوير (Debug — معرّفات إعلانات اختبار)"
 ( cd android && ./gradlew assembleDebug --console=plain -q )
 cp "$JS_GRADLE/apk/debug/app-debug.apk" "$APK/mahdara-al-durus-debug.apk"
 ok "debug"

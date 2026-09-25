@@ -16,8 +16,7 @@
 | --- | --- | --- |
 | Web | متاحة ✅ | `dist/` (عبر `dist/server.cjs`) |
 | Android (إعلانات حقيقية) | متاحة ✅ | `release/apk/mahdara-al-durus-release-v1.1.0.apk` |
-| Android (إعلانات تجريبية) | متاحة ✅ | `release/apk/mahdara-al-durus-test-ads-v1.1.0.apk` |
-| Android Debug | متاحة ✅ | `release/apk/mahdara-al-durus-debug.apk` |
+| Android Debug (إعلانات اختبار) | متاحة ✅ | `release/apk/mahdara-al-durus-debug.apk` — معرّفات الاختبار تُختار تلقائيًا عبر `BuildConfig.DEBUG` |
 | Android AAB (بلاي ستور) | متاحة ✅ | `release/play/mahdara-al-durus-release-v1.1.0.aab` |
 | Windows سطح المكتب | مدعومة ومُفسَّرة عبر CI ✅ | `release/desktop/windows/` — `mahdara-al-durus_1.1.0_x64-setup.exe` + `.msi` (CI `desktop.yml`) |
 | Linux سطح المكتب | مدعومة ومُفسَّرة عبر CI ✅ | `release/desktop/linux/` — `.deb` + `.AppImage` (CI أو محليًا) |
@@ -41,7 +40,7 @@
 3. فحص ثم بناء الويب بأمرين إجباريين بعد أي تعديل:
    `npm run lint` (يساوي `tsc --noEmit`) ثم `npm run build` (يساوي `vite build && esbuild server.ts`) — **صفر أخطاء**.
 4. التوقيع: `android/keystore.properties` + `android/keystore/mahdara-release.keystore` — **أسرار، لا تُرفع أبدًا**. (توقيع Apple لـ iOS يتم عبر CI عند توفّر الأسرار)
-5. الإعلانات: بناء بدون `VITE_ADS_TEST_MODE` = معرّفات AdMob الحقيقية؛ و`VITE_ADS_TEST_MODE=true` = عينات الاختبار. (Android فقط)
+5. الإعلانات: اختيار معرّفات AdMob يتم وقت التشغيل عبر `BuildConfig.DEBUG` — نسخ Debug تستخدم معرّفات Google الاختبارية، ونسخ Release تستخدم معرّفات AdMob الحقيقية. (لا يوجد متغير `VITE_ADS_TEST_MODE` في هذا المشروع)
 6. بنية سطح المكتب موجودة في `src-tauri/` (Tauri v2) ومنصة ايفون في `ios/` (Capacitor) — كلاهما يعتمد نفس ويب `dist/`.
 7. **iOS في Capacitor 8.5+**: حزمة `capacitor-swift-pm` الثنائية مبنية مع العلم التجريبي `NonescapableTypes`؛ لتجميع المكوّنات القديمة (`@capacitor/share`, `@capacitor/filesystem`) في `ios.yml` تُحقن خطوة "Patch plugins Swift API" تستبدل في هر `Package.swift` كل مكوّن بإضافة `swiftSettings: [.enableExperimentalFeature("NonescapableTypes")]` — لا تُلغِ هذه الخطوة.
 8. **Desktop CI**: لا يُستخدم `tauri-apps/tauri-action` لأن محرك bun يكسر الطلب — البناء المباشر عبر `npm run tauri -- build [--target X]`، ورفع الأرتيفاكتات من `src-tauri/target/*/release/bundle/**` (مسار يغطي الرؤوس المتقاطعة على Mac).
@@ -49,7 +48,7 @@
 
 ## ٤) البروتوكول الإلزامي بعد كل تعديل (بالترتيب)
 
-> **الأمر الواحد الإلزامي:** `npm run release` (= `bash script/release-all.sh`) يَنفّذ الخطوات ٠→٦ كلها (تصعيد الإصدار + بناء النسخ الأربع + التحقق + الالتزام + الرفع + جلب نواتج CI) بنفس الترتيب أدناه.
+> **الأمر الواحد الإلزامي:** `npm run release` (= `bash script/release-all.sh`) يَنفّذ الخطوات ٠→٦ كلها (تصعيد الإصدار + بناء نسخ Android والويب + التحقق + الالتزام + الرفع + جلب نواتج CI) بنفس الترتيب أدناه.
 > **آليًا «فور كل تعديل»:** الخطاف `.git/hooks/post-commit` يشغّل السكربت تلقائيًا بعد **كل** التزام — يُعيد بناء كل النسخ ويتحقق ويرفع إلى GitHub ويجلب نواتج سطح المكتب/ايفون من CI من تلقاء نفسه. سجل التشغيل في `.release-last.log` (جذر المشروع). الخطاف يُضبط `MAHDARA_RELEASE=1` (من أسباب عدم التصعيد المشروعة) فيتجنّب العودية وتكرار تصعيد الإصدار.
 > إذا فشل البناء يبقى الالتزام محليًا ويعرض الخطاف السجل — أصلح ثم أعد `npm run release`.
 
@@ -66,18 +65,11 @@ npm run lint
 npm run build
 ```
 
-### الخطوة 2 — إصدارات Android الأربعة
+### الخطوة 2 — إصدارات Android
 
-أ) النسخة التجريبية (إعلانات اختبار):
-```bash
-VITE_ADS_TEST_MODE=true npm run build
-npx cap sync android
-cd android && ./gradlew assembleRelease
-cd ..
-cp android/app/build/outputs/apk/release/app-release.apk release/apk/mahdara-al-durus-test-ads-v1.1.0.apk
-```
+> ملاحظة — اختيار معرّفات الإعلانات يتم وقت التشغيل عبر `BuildConfig.DEBUG`: نسخة **Debug** تستخدم معرّفات Google الاختبارية، ونسخة **Release/AAB** تستخدم معرّفات AdMob الحقيقية. (لا يوجد متغير `VITE_ADS_TEST_MODE` في هذا المشروع.)
 
-ب) النسخة الحقيقية + ملف البلاي (AAB):
+أ) النسخة الحقيقية + ملف البلاي (AAB):
 ```bash
 npm run build
 npx cap sync android
@@ -87,7 +79,7 @@ cp android/app/build/outputs/apk/release/app-release.apk release/apk/mahdara-al-
 cp android/app/build/outputs/bundle/release/app-release.aab release/play/mahdara-al-durus-release-v1.1.0.aab
 ```
 
-ج) نسخة التطوير (Debug):
+ب) نسخة التطوير (Debug — إعلانات اختبار):
 ```bash
 cd android && ./gradlew assembleDebug
 cd ..
