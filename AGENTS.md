@@ -27,6 +27,7 @@
 
 - **الإعلانات (AdMob) تعمل على Android فقط** عبر مكوّن أصلي مكتوب يدويًا (`AdsPlugin`). على الويب وسطح المكتب (Tauri) والايفون لا إعلانات — `src/utils/ads.ts` ينسحب بأمان إذا غاب المكوّن.
 - **مفتاح Gemini** يُضمَّن وقت البناء من `VITE_GEMINI_API_KEY` (في `.env.local` محليًا، أو السر `VITE_GEMINI_API_KEY` في GitHub Actions للمستودع). داخل التطبيق (Android/ايفون/سطح المكتب Tauri) يُستدعى Gemini مباشرة من العميل عبر `src/services/geminiDirect.ts`؛ وفي الويب عبر خادم `server.ts`. لا يُرفع المفتاح أبدًا إلى المستودع.
+- التطبيق يدعم أيضًا **مفتاح Gemini وقت التشغيل**: من «قاعدة البيانات والإعدادات» (في `MobileDatabaseModal`) يمكن للمستخدم إدخال مفتاحه فيُحفظ محليًا في `localStorage` (مفتاح `mahdara.geminiKey`) ويفعّل أدوات الذكاء الاصطناعي في النسخ المبنية دون مفتاح (مثل نسخ Flathub/Snap) — المنطق في `src/services/geminiDirect.ts` (`resolveGeminiApiKey`).
 - في توزيعات سطح المكتب لا يوجد خادم Express — لهذا يعامل Tauri كـ«أصلي» في `src/services/ai.ts` (كشف `window.__TAURI_INTERNALS__`) لاستدعاء Gemini مباشرة.
 - الـ Linux محليًا يتطلب أولًا: `sudo apt install libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev` ثم `npm run desktop:build:linux`.
 - الحصول على **IPA نهائي** يحتاج توقيع Apple (Certificate + Provisioning Profile) من حساب المطوّر.

@@ -1,0 +1,13 @@
+<services>
+  <service name="download_files">
+    <param name="url">https://github.com/mohamedewiasabd/mahdara-al-durus/releases/download/v1.1.0/mahdara-al-durus_1.1.0_amd64.AppImage</param>
+  </service>
+  <service name="download_url">
+    <param name="url">https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/packaging/flathub/share/applications/org.mahdara.durus.desktop</param>
+    <param name="filename">org.mahdara.durus.desktop</param>
+  </service>
+  <service name="download_url">
+    <param name="url">https://raw.githubusercontent.com/mohamedewiasabd/mahdara-al-durus/main/packaging/flathub/share/icons/hicolor/256x256/apps/org.mahdara.durus.png</param>
+    <param name="filename">org.mahdara.durus.png</param>
+  </service>
+</services>

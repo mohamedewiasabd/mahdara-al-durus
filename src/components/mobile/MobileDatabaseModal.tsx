@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
   X,
   Database,
@@ -10,8 +10,12 @@ import {
   BookOpen,
   Info,
   Trash2,
+  KeyRound,
+  Zap,
+  Save,
 } from "lucide-react";
 import { Book, Lesson } from "../../types";
+import { getGeminiKeyState, setRuntimeGeminiKey } from "../../services/geminiDirect";
 
 interface Props {
   isOpen: boolean;
@@ -34,6 +38,9 @@ export const MobileDatabaseModal: React.FC<Props> = ({
   onResetToSeed,
   onDeleteBookRequest,
 }) => {
+  const [keyDraft, setKeyDraft] = useState(() => getGeminiKeyState().runtime);
+  const [savedFlash, setSavedFlash] = useState<string | null>(null);
+
   if (!isOpen) return null;
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -107,6 +114,60 @@ export const MobileDatabaseModal: React.FC<Props> = ({
                 <span className="block text-[10px] text-slate-500">إجمالي الدروس</span>
                 <span className="text-sm font-extrabold text-slate-900">{lessons.length}</span>
               </div>
+            </div>
+          </div>
+
+          {/* Gemini API Key — runtime activation (as on Flatpak/Snap builds) */}
+          <div className="space-y-2">
+            <h4 className="font-bold text-slate-800 text-xs flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <KeyRound className="w-3.5 h-3.5 text-emerald-600" />
+                مفتاح الذكاء الاصطناعي (Gemini)
+              </span>
+              {getGeminiKeyState().builtin ? (
+                <span className="text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full font-bold">
+                  المفتاح مضمَّن بالنسخة
+                </span>
+              ) : (
+                <span className="text-[10px] text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full font-bold">
+                  مطلوب إدخاله
+                </span>
+              )}
+            </h4>
+            <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+              <p className="text-[11px] text-slate-500 leading-relaxed flex items-start gap-1.5">
+                <Info className="w-3.5 h-3.5 text-slate-400 shrink-0 mt-0.5" />
+                في النسخ غير المضمَّنة (مثل Flathub أو النسخ المبنية دون مفتاح) أدخل مفتاح
+                Gemini هنا لتفعيل أدوات الذكاء الاصطناعي — يُحفظ محلياً على جهازك فقط ولا يُرفع.
+              </p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="password"
+                  dir="ltr"
+                  value={keyDraft}
+                  onChange={(e) => setKeyDraft(e.target.value)}
+                  placeholder="AIza…"
+                  className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-white border border-slate-300 text-xs text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/40"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setRuntimeGeminiKey(keyDraft);
+                    setSavedFlash(keyDraft.trim() ? "تم حفظ المفتاح محلياً" : "تمت إزالة المفتاح");
+                    setTimeout(() => setSavedFlash(null), 3000);
+                  }}
+                  className="shrink-0 px-3 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold flex items-center gap-1 hover:bg-emerald-700 transition-colors"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  حفظ
+                </button>
+              </div>
+              {savedFlash && (
+                <p className="text-[11px] text-emerald-700 flex items-center gap-1 font-bold">
+                  <Zap className="w-3.5 h-3.5" />
+                  {savedFlash}
+                </p>
+              )}
             </div>
           </div>
 

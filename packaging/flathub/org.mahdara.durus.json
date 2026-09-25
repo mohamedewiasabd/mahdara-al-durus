@@ -70,7 +70,7 @@
         "export VITE_GEMINI_API_KEY=${VITE_GEMINI_API_KEY:-}",
         "npm ci",
         "npm run build",
-        "cd src-tauri && cargo build --release",
+        "cd src-tauri && cargo build --release --locked",
         "install -Dm755 src-tauri/target/release/mahdara-al-durus /app/bin/mahdara-al-durus",
         "install -Dm644 packaging/flathub/share/applications/org.mahdara.durus.desktop /app/share/applications/",
         "install -Dm644 packaging/flathub/share/metainfo/org.mahdara.durus.metainfo.xml /app/share/metainfo/",

@@ -1,7 +1,29 @@
 import { GoogleGenAI } from "@google/genai";
 import type { TabId } from "../types";
 
-const CLIENT_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string) || "";
+const BUILTIN_GEMINI_API_KEY = (import.meta.env.VITE_GEMINI_API_KEY as string) || "";
+const RUNTIME_GEMINI_KEY_STORE = "mahdara.geminiKey";
+
+export function getRuntimeGeminiKey(): string {
+  if (typeof localStorage === "undefined") return "";
+  return (localStorage.getItem(RUNTIME_GEMINI_KEY_STORE) || "").trim();
+}
+
+export function setRuntimeGeminiKey(key: string): string {
+  const clean = (key || "").trim();
+  if (typeof localStorage === "undefined") return clean;
+  if (clean) localStorage.setItem(RUNTIME_GEMINI_KEY_STORE, clean);
+  else localStorage.removeItem(RUNTIME_GEMINI_KEY_STORE);
+  return clean;
+}
+
+export function getGeminiKeyState(): { builtin: boolean; runtime: string } {
+  return { builtin: Boolean(BUILTIN_GEMINI_API_KEY.trim()), runtime: getRuntimeGeminiKey() };
+}
+
+function resolveGeminiApiKey(): string {
+  return BUILTIN_GEMINI_API_KEY || getRuntimeGeminiKey();
+}
 
 // Model fallback engine (same strategy as the server)
 const PREFERRED_MODEL = "gemini-3.1-flash-lite";
@@ -108,8 +130,9 @@ function sanitizeTextFields(value: any): any {
 }
 
 function getGeminiClient(): GoogleGenAI | null {
-  if (!CLIENT_API_KEY) return null;
-  return new GoogleGenAI({ apiKey: CLIENT_API_KEY });
+  const key = resolveGeminiApiKey();
+  if (!key) return null;
+  return new GoogleGenAI({ apiKey: key });
 }
 
 async function generateWithFallback(
@@ -355,7 +378,7 @@ export interface DirectSplitBookPayload {
 export async function splitBookGemini(payload: DirectSplitBookPayload) {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("لم يتم ضبط مفتاح الذكاء الاصطناعي (Gemini API Key) في التطبيق. أعد تثبيت النسخة المفعّلة.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const {
@@ -762,7 +785,7 @@ export async function generateTabGemini(payload: {
 }): Promise<TabGenResult> {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("المفتاح غير مفعّل. أعد تثبيت النسخة المفعّلة من التطبيق.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const { tabType, customPrompt, onProgress } = payload;
@@ -820,7 +843,7 @@ export async function generateTabGeminiStream(payload: {
 }): Promise<TabGenResult> {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("المفتاح غير مفعّل. أعد تثبيت النسخة المفعّلة من التطبيق.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const { tabType, customPrompt, onProgress, onDelta } = payload;
@@ -889,7 +912,7 @@ export async function extractLessonGemini(payload: {
 }) {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("المفتاح غير مفعّل. أعد تثبيت النسخة المفعّلة من التطبيق.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const { pdfBase64, fileBase64, lessonTitle, bookTitle, fileMimeType } = payload;
@@ -940,7 +963,7 @@ export async function explainSelectionGemini(payload: {
 }) {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("المفتاح غير مفعّل. أعد تثبيت النسخة المفعّلة من التطبيق.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const { selectedText, lessonTitle, unitTitle, bookTitle, tabType, tabTitle, lessonContent, customInstruction } = payload;
@@ -983,7 +1006,7 @@ export async function socraticQuestionsGemini(payload: {
 }): Promise<{ success: boolean; questions: string[]; modelUsed?: string; error?: string }> {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("المفتاح غير مفعّل. أعد تثبيت النسخة المفعّلة من التطبيق.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const { slideText, lessonTitle } = payload;
@@ -1025,7 +1048,7 @@ export async function generateQuestionGemini(payload: {
 }): Promise<{ success: boolean; question: any; modelUsed?: string; error?: string }> {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("المفتاح غير مفعّل. أعد تثبيت النسخة المفعّلة من التطبيق.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const { selectedText, lessonTitle, questionType } = payload;
@@ -1077,7 +1100,7 @@ export async function generateSemesterPlanGemini(payload: {
 }): Promise<{ success: boolean; plan: any; modelUsed?: string; error?: string }> {
   const ai = getGeminiClient();
   if (!ai) {
-    throw new Error("المفتاح غير مفعّل. أعد تثبيت النسخة المفعّلة من التطبيق.");
+    throw new Error("لم يُضبط مفتاح الذكاء الاصطناعي (Gemini). اضبطه من «قاعدة البيانات والإعدادات» أو أعد تثبيت النسخة المفعّلة.");
   }
 
   const { bookTitle, subject, grade, weeksCount, termLabel, lessons, onProgress } = payload;
