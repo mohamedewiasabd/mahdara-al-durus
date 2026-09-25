@@ -67,6 +67,6 @@ jobs:
         with:
           name: mahdara-desktop-${{ matrix.platform }}
           path: |
-            src-tauri/target/*/release/bundle/**
+            src-tauri/target/**/bundle/**
             !**/*.map
           if-no-files-found: warn
