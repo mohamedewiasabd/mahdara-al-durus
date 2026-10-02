@@ -16,6 +16,7 @@ import {
   MinusCircle,
   ClipboardCopy,
   FileText,
+  BookMarked,
 } from "lucide-react";
 import { Book, Lesson, AttendanceStatus, AttendanceRecord } from "../../types";
 import { generateSemesterPlanWithAI } from "../../services/ai";
@@ -48,9 +49,11 @@ type Section = "plan" | "attend" | "grades" | "homework" | "bank";
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-/** تُحفظ «المادة» والدرس المختاران لسببًاتجيل بين الأقسام وحتى بعد إعادة فتح شاشة المتابعة. */
+/** تُحفظ المادة والدرس والقسم والصف المختارون ليبقى التنقل متصلًا بين الأقسام وحتى بعد إعادة فتح الشاشة. */
 const TRACKING_BOOK_KEY = "mahdara.trackingBookId";
 const TRACKING_LESSON_KEY = "mahdara.trackingLessonTitle";
+const TRACKING_SECTION_KEY = "mahdara.trackingSection";
+const TRACKING_CLASS_KEY = "mahdara.trackingClassId";
 
 function readStored(key: string): string {
   try {
@@ -73,20 +76,26 @@ interface Props {
   books: Book[];
   lessons: Lesson[];
   defaultBookId?: string;
+  defaultLessonTitle?: string;
   onClose: () => void;
 }
 
-export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId, onClose }) => {
-  const [section, setSection] = useState<Section>("plan");
+const VALID_SECTIONS: Section[] = ["plan", "attend", "grades", "homework", "bank"];
 
-  // ---- shared selection across sections (tied to the "مادة" chosen before) ----
+export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId, defaultLessonTitle, onClose }) => {
+  // ---- shared selection across sections (tied to the lesson being taught) ----
+  const [section, setSection] = useState<Section>(() => {
+    const saved = readStored(TRACKING_SECTION_KEY) as Section;
+    return VALID_SECTIONS.includes(saved) ? saved : "plan";
+  });
   const [bookId, setBookId] = useState<string>(() => {
+    if (defaultBookId && defaultBookId.trim() && books.some((b) => b.id === defaultBookId)) return defaultBookId;
     const saved = readStored(TRACKING_BOOK_KEY);
     if (saved && books.some((b) => b.id === saved)) return saved;
-    if (defaultBookId && books.some((b) => b.id === defaultBookId)) return defaultBookId;
     return books[0]?.id || "";
   });
-  const [lessonTitle, setLessonTitle] = useState<string>(() => readStored(TRACKING_LESSON_KEY));
+  const [lessonTitle, setLessonTitle] = useState<string>(() => defaultLessonTitle || readStored(TRACKING_LESSON_KEY));
+  const [classId, setClassId] = useState<string>(() => readStored(TRACKING_CLASS_KEY));
 
   useEffect(() => {
     if (books.length && !books.some((b) => b.id === bookId)) {
@@ -95,6 +104,7 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
   }, [books]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bookLessons = useMemo(() => lessons.filter((l) => l.bookId === bookId), [lessons, bookId]);
+  const selectedBook = books.find((b) => b.id === bookId);
 
   useEffect(() => {
     if (bookLessons.length && (!lessonTitle || !bookLessons.some((l) => l.title === lessonTitle))) {
@@ -108,6 +118,12 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
   useEffect(() => {
     writeStored(TRACKING_LESSON_KEY, lessonTitle);
   }, [lessonTitle]);
+  useEffect(() => {
+    writeStored(TRACKING_SECTION_KEY, section);
+  }, [section]);
+  useEffect(() => {
+    writeStored(TRACKING_CLASS_KEY, classId);
+  }, [classId]);
 
   // ---- persisted data ----
   const [classes, setClasses] = useState<any[]>([]);
@@ -116,6 +132,11 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
     setClasses(await getClasses());
     setStudents(await getStudents());
   }, []);
+
+  useEffect(() => {
+    if (classes.length && classId && !classes.some((c) => c.id === classId)) setClassId(classes[0].id);
+    if (classes.length && !classId) setClassId(classes[0].id);
+  }, [classes]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -163,6 +184,16 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
         ))}
       </div>
 
+      {(section === "attend" || section === "homework" || section === "grades") && selectedBook && (
+        <div className="bg-emerald-50 border-b border-emerald-100 px-4 py-1.5 text-[11px] text-emerald-900 font-bold flex items-center gap-1.5">
+          <BookMarked className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">
+            المادة الحالية: {selectedBook.title}
+            {lessonTitle ? ` · ${lessonTitle}` : ""}
+          </span>
+        </div>
+      )}
+
       <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
         {section === "plan" && (
           <PlanSection
@@ -182,9 +213,19 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
             bookLessons={bookLessons}
             lessonTitle={lessonTitle}
             onLessonTitleChange={setLessonTitle}
+            classId={classId}
+            onClassIdChange={setClassId}
           />
         )}
-        {section === "grades" && <GradesSection classes={classes} setClasses={setClasses} students={students} />}
+        {section === "grades" && (
+          <GradesSection
+            classes={classes}
+            setClasses={setClasses}
+            students={students}
+            classId={classId}
+            onClassIdChange={setClassId}
+          />
+        )}
         {section === "homework" && (
           <HomeworkSection
             classes={classes}
@@ -193,6 +234,8 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
             bookLessons={bookLessons}
             lessonTitle={lessonTitle}
             onLessonTitleChange={setLessonTitle}
+            classId={classId}
+            onClassIdChange={setClassId}
           />
         )}
         {section === "bank" && <BankSection bookLessons={bookLessons} />}
@@ -482,6 +525,8 @@ function AttendSection({
   bookLessons,
   lessonTitle,
   onLessonTitleChange,
+  classId,
+  onClassIdChange,
 }: {
   classes: any[];
   setClasses: (c: any[]) => void;
@@ -490,16 +535,13 @@ function AttendSection({
   bookLessons: Lesson[];
   lessonTitle: string;
   onLessonTitleChange: (title: string) => void;
+  classId: string;
+  onClassIdChange: (id: string) => void;
 }) {
-  const [classId, setClassId] = useState("");
   const [records, setRecords] = useState<any[]>([]);
   const [date, setDate] = useState(todayISO());
   const [entry, setEntry] = useState<Record<string, "present" | "absent" | "late">>({});
   const [saved, setSaved] = useState(false);
-
-  useEffect(() => {
-    if (classes.length && !classId) setClassId(classes[0].id);
-  }, [classes.length]);
 
   useEffect(() => {
     if (classId) getAttendance(classId).then((r) => setRecords(r.sort((a: any, b: any) => (a.date < b.date ? 1 : -1))));
@@ -553,7 +595,7 @@ function AttendSection({
     <div className="space-y-3">
       <select
         value={classId}
-        onChange={(e) => setClassId(e.target.value)}
+        onChange={(e) => onClassIdChange(e.target.value)}
         className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
       >
         {!classes.length && <option value="">— أنشئ فصلاً أولاً —</option>}
@@ -675,12 +717,15 @@ function GradesSection({
   classes,
   setClasses,
   students,
+  classId,
+  onClassIdChange,
 }: {
   classes: any[];
   setClasses: (c: any[]) => void;
   students: any[];
+  classId: string;
+  onClassIdChange: (id: string) => void;
 }) {
-  const [classId, setClassId] = useState("");
   const [grades, setGrades] = useState<any[]>([]);
   const [s, setS] = useState("");
   const [assessment, setAssessment] = useState("");
@@ -688,9 +733,6 @@ function GradesSection({
   const [maxScore, setMaxScore] = useState("10");
   const [note, setNote] = useState("");
 
-  useEffect(() => {
-    if (classes.length && !classId) setClassId(classes[0].id);
-  }, [classes.length]);
   useEffect(() => {
     if (classId) getGrades(classId).then(setGrades);
   }, [classId]);
@@ -723,7 +765,7 @@ function GradesSection({
     <div className="space-y-3">
       <select
         value={classId}
-        onChange={(e) => setClassId(e.target.value)}
+        onChange={(e) => onClassIdChange(e.target.value)}
         className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
       >
         {!classes.length && <option value="">— أنشئ فصلاً أولاً —</option>}
@@ -832,6 +874,8 @@ function HomeworkSection({
   bookLessons,
   lessonTitle,
   onLessonTitleChange,
+  classId,
+  onClassIdChange,
 }: {
   classes: any[];
   setClasses: (c: any[]) => void;
@@ -839,15 +883,13 @@ function HomeworkSection({
   bookLessons: Lesson[];
   lessonTitle: string;
   onLessonTitleChange: (title: string) => void;
+  classId: string;
+  onClassIdChange: (id: string) => void;
 }) {
-  const [classId, setClassId] = useState("");
   const [items, setItems] = useState<any[]>([]);
   const [task, setTask] = useState("");
   const [dueDate, setDueDate] = useState("");
 
-  useEffect(() => {
-    if (classes.length && !classId) setClassId(classes[0].id);
-  }, [classes.length]);
   useEffect(() => {
     if (classId) getHomework(classId).then((h) => setItems(h.sort((a: any, b: any) => (a.createdAt < b.createdAt ? 1 : -1))));
   }, [classId]);
@@ -887,7 +929,7 @@ function HomeworkSection({
     <div className="space-y-3">
       <select
         value={classId}
-        onChange={(e) => setClassId(e.target.value)}
+        onChange={(e) => onClassIdChange(e.target.value)}
         className="w-full p-2.5 rounded-xl border border-slate-200 bg-white text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
       >
         {!classes.length && <option value="">— أنشئ فصلاً أولاً —</option>}

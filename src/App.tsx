@@ -487,6 +487,7 @@ export default function App() {
               books={books}
               lessons={lessons}
               defaultBookId={currentBook?.id}
+              defaultLessonTitle={selectedLesson?.title}
               onClose={() => setMobileActiveNav("prepare")}
             />
           )}
