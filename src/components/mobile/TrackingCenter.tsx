@@ -48,14 +48,66 @@ type Section = "plan" | "attend" | "grades" | "homework" | "bank";
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
+/** تُحفظ «المادة» والدرس المختاران لسببًاتجيل بين الأقسام وحتى بعد إعادة فتح شاشة المتابعة. */
+const TRACKING_BOOK_KEY = "mahdara.trackingBookId";
+const TRACKING_LESSON_KEY = "mahdara.trackingLessonTitle";
+
+function readStored(key: string): string {
+  try {
+    return typeof localStorage !== "undefined" ? (localStorage.getItem(key) || "") : "";
+  } catch {
+    return "";
+  }
+}
+
+function writeStored(key: string, value: string): void {
+  try {
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
+  } catch {
+    /* ignore storage errors */
+  }
+}
+
 interface Props {
   books: Book[];
   lessons: Lesson[];
+  defaultBookId?: string;
   onClose: () => void;
 }
 
-export const TrackingCenter: React.FC<Props> = ({ books, lessons, onClose }) => {
+export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId, onClose }) => {
   const [section, setSection] = useState<Section>("plan");
+
+  // ---- shared selection across sections (tied to the "مادة" chosen before) ----
+  const [bookId, setBookId] = useState<string>(() => {
+    const saved = readStored(TRACKING_BOOK_KEY);
+    if (saved && books.some((b) => b.id === saved)) return saved;
+    if (defaultBookId && books.some((b) => b.id === defaultBookId)) return defaultBookId;
+    return books[0]?.id || "";
+  });
+  const [lessonTitle, setLessonTitle] = useState<string>(() => readStored(TRACKING_LESSON_KEY));
+
+  useEffect(() => {
+    if (books.length && !books.some((b) => b.id === bookId)) {
+      setBookId(defaultBookId && books.some((b) => b.id === defaultBookId) ? defaultBookId : books[0].id);
+    }
+  }, [books]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const bookLessons = useMemo(() => lessons.filter((l) => l.bookId === bookId), [lessons, bookId]);
+
+  useEffect(() => {
+    if (bookLessons.length && (!lessonTitle || !bookLessons.some((l) => l.title === lessonTitle))) {
+      setLessonTitle(bookLessons[0].title);
+    }
+  }, [bookLessons, lessonTitle]);
+
+  useEffect(() => {
+    writeStored(TRACKING_BOOK_KEY, bookId);
+  }, [bookId]);
+  useEffect(() => {
+    writeStored(TRACKING_LESSON_KEY, lessonTitle);
+  }, [lessonTitle]);
 
   // ---- persisted data ----
   const [classes, setClasses] = useState<any[]>([]);
@@ -69,7 +121,7 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, onClose }) => 
   }, [refresh]);
 
   return (
-    <div className="flex-1 h-full flex flex-col overflow-hidden bg-slate-50/50 animate-in fade-in duration-200">
+    <div className="flex-1 h-full min-h-0 flex flex-col overflow-hidden bg-slate-50/50 animate-in fade-in duration-200">
       {/* Header */}
       <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
         <div>
@@ -111,31 +163,59 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, onClose }) => 
         ))}
       </div>
 
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {section === "plan" && <PlanSection books={books} lessons={lessons} onDataChange={refresh} />}
+      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+        {section === "plan" && (
+          <PlanSection
+            books={books}
+            bookLessons={bookLessons}
+            bookId={bookId}
+            onBookIdChange={setBookId}
+            onDataChange={refresh}
+          />
+        )}
         {section === "attend" && (
           <AttendSection
             classes={classes}
             setClasses={setClasses}
             students={students}
             setStudents={setStudents}
-            lessons={lessons}
+            bookLessons={bookLessons}
+            lessonTitle={lessonTitle}
+            onLessonTitleChange={setLessonTitle}
           />
         )}
         {section === "grades" && <GradesSection classes={classes} setClasses={setClasses} students={students} />}
         {section === "homework" && (
-          <HomeworkSection classes={classes} setClasses={setClasses} students={students} lessons={lessons} />
+          <HomeworkSection
+            classes={classes}
+            setClasses={setClasses}
+            students={students}
+            bookLessons={bookLessons}
+            lessonTitle={lessonTitle}
+            onLessonTitleChange={setLessonTitle}
+          />
         )}
-        {section === "bank" && <BankSection lessons={lessons} />}
+        {section === "bank" && <BankSection bookLessons={bookLessons} />}
       </div>
     </div>
   );
 };
 
 /* ================= PLAN SECTION ================= */
-function PlanSection({ books, lessons, onDataChange }: { books: Book[]; lessons: Lesson[]; onDataChange: () => void }) {
+function PlanSection({
+  books,
+  bookLessons,
+  bookId,
+  onBookIdChange,
+  onDataChange,
+}: {
+  books: Book[];
+  bookLessons: Lesson[];
+  bookId: string;
+  onBookIdChange: (id: string) => void;
+  onDataChange: () => void;
+}) {
   const [plans, setPlans] = useState<any[]>([]);
-  const [bookId, setBookId] = useState("");
   const [weeksCount, setWeeksCount] = useState(12);
   const [termLabel, setTermLabel] = useState("الفصل الدراسي الأول");
   const [generating, setGenerating] = useState(false);
@@ -143,11 +223,9 @@ function PlanSection({ books, lessons, onDataChange }: { books: Book[]; lessons:
 
   useEffect(() => {
     getPlans().then(setPlans);
-    if (books.length && !bookId) setBookId(books[0].id);
-  }, [books.length]);
+  }, []);
 
   const currentBook = books.find((b) => b.id === bookId);
-  const bookLessons = lessons.filter((l) => l.bookId === bookId);
 
   const handleGenerate = async () => {
     if (!currentBook || !bookLessons || !bookLessons.length) {
@@ -202,7 +280,7 @@ function PlanSection({ books, lessons, onDataChange }: { books: Book[]; lessons:
         </div>
         <select
           value={bookId}
-          onChange={(e) => setBookId(e.target.value)}
+          onChange={(e) => onBookIdChange(e.target.value)}
           className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm font-bold outline-none focus:ring-2 focus:ring-emerald-500"
         >
           {books.map((b) => (
@@ -235,7 +313,7 @@ function PlanSection({ books, lessons, onDataChange }: { books: Book[]; lessons:
         </div>
         <button
           onClick={handleGenerate}
-          disabled={generating || !lessons}
+          disabled={generating || !bookLessons.length}
           className="w-full flex items-center justify-center gap-2 p-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold transition-all active:scale-[0.98]"
         >
           {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -401,17 +479,20 @@ function AttendSection({
   setClasses,
   students,
   setStudents,
-  lessons,
+  bookLessons,
+  lessonTitle,
+  onLessonTitleChange,
 }: {
   classes: any[];
   setClasses: (c: any[]) => void;
   students: any[];
   setStudents: (s: any[]) => void;
-  lessons: Lesson[];
+  bookLessons: Lesson[];
+  lessonTitle: string;
+  onLessonTitleChange: (title: string) => void;
 }) {
   const [classId, setClassId] = useState("");
   const [records, setRecords] = useState<any[]>([]);
-  const [lessonTitle, setLessonTitle] = useState("");
   const [date, setDate] = useState(todayISO());
   const [entry, setEntry] = useState<Record<string, "present" | "absent" | "late">>({});
   const [saved, setSaved] = useState(false);
@@ -423,10 +504,6 @@ function AttendSection({
   useEffect(() => {
     if (classId) getAttendance(classId).then((r) => setRecords(r.sort((a: any, b: any) => (a.date < b.date ? 1 : -1))));
   }, [classId]);
-
-  useEffect(() => {
-    if (lessons.length && !lessonTitle) setLessonTitle(lessons[0].title);
-  }, [lessons.length]);
 
   const classStudents = students.filter((s) => s.classId === classId);
   const recordKey = classId ? `${classId}__${lessonTitle}__${date}` : "";
@@ -496,14 +573,15 @@ function AttendSection({
         </div>
         <select
           value={lessonTitle}
-          onChange={(e) => setLessonTitle(e.target.value)}
+          onChange={(e) => onLessonTitleChange(e.target.value)}
           className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
         >
-          {lessons.map((l) => (
+          {bookLessons.map((l) => (
             <option key={l.id} value={l.title}>
               {l.title}
             </option>
           ))}
+          {!bookLessons.length && <option value="">— لا توجد دروس في هذه المادة —</option>}
         </select>
         <input
           type="date"
@@ -534,7 +612,7 @@ function AttendSection({
                           st === id ? `${cls} text-white` : "bg-white border border-slate-200 text-slate-400"
                         }`}
                       >
-                        <Icon className="w-3 h-3 {''}" />
+                        <Icon className="w-3 h-3" />
                         {label}
                       </button>
                     ))}
@@ -751,16 +829,19 @@ function HomeworkSection({
   classes,
   setClasses,
   students,
-  lessons,
+  bookLessons,
+  lessonTitle,
+  onLessonTitleChange,
 }: {
   classes: any[];
   setClasses: (c: any[]) => void;
   students: any[];
-  lessons: Lesson[];
+  bookLessons: Lesson[];
+  lessonTitle: string;
+  onLessonTitleChange: (title: string) => void;
 }) {
   const [classId, setClassId] = useState("");
   const [items, setItems] = useState<any[]>([]);
-  const [lessonTitle, setLessonTitle] = useState("");
   const [task, setTask] = useState("");
   const [dueDate, setDueDate] = useState("");
 
@@ -770,9 +851,6 @@ function HomeworkSection({
   useEffect(() => {
     if (classId) getHomework(classId).then((h) => setItems(h.sort((a: any, b: any) => (a.createdAt < b.createdAt ? 1 : -1))));
   }, [classId]);
-  useEffect(() => {
-    if (lessons.length && !lessonTitle) setLessonTitle(lessons[0].title);
-  }, [lessons.length]);
 
   const classStudents = students.filter((s) => s.classId === classId);
 
@@ -828,14 +906,15 @@ function HomeworkSection({
         </div>
         <select
           value={lessonTitle}
-          onChange={(e) => setLessonTitle(e.target.value)}
+          onChange={(e) => onLessonTitleChange(e.target.value)}
           className="w-full p-2.5 rounded-xl border border-slate-200 bg-slate-50 text-sm outline-none focus:ring-2 focus:ring-emerald-500"
         >
-          {lessons.map((l) => (
+          {bookLessons.map((l) => (
             <option key={l.id} value={l.title}>
               {l.title}
             </option>
           ))}
+          {!bookLessons.length && <option value="">— لا توجد دروس في هذه المادة —</option>}
         </select>
         <textarea
           value={task}
@@ -905,7 +984,7 @@ function HomeworkSection({
 }
 
 /* ================= BANK SECTION ================= */
-function BankSection({ lessons }: { lessons: Lesson[] }) {
+function BankSection({ bookLessons }: { bookLessons: Lesson[] }) {
   const [items, setItems] = useState<any[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [composed, setComposed] = useState("");
@@ -915,10 +994,10 @@ function BankSection({ lessons }: { lessons: Lesson[] }) {
     getQuestionBank().then(setItems);
   }, []);
 
-  // Collect all quiz-record questions from the loaded book lessons
+  // Collect all quiz-record questions from the selected book's lessons
   const lessonQuizPool = useMemo(() => {
     const pool: any[] = [];
-    for (const l of lessons) {
+    for (const l of bookLessons) {
       const rec = l.generatedTabs?.quiz;
       const qs = rec?.data?.questions;
       if (Array.isArray(qs)) {
@@ -926,7 +1005,7 @@ function BankSection({ lessons }: { lessons: Lesson[] }) {
       }
     }
     return pool;
-  }, [lessons]);
+  }, [bookLessons]);
 
   const toggle = (id: string) => {
     setSelected((p) => {

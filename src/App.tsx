@@ -486,6 +486,7 @@ export default function App() {
             <TrackingCenter
               books={books}
               lessons={lessons}
+              defaultBookId={currentBook?.id}
               onClose={() => setMobileActiveNav("prepare")}
             />
           )}
