@@ -19,7 +19,8 @@
       "name": "node",
       "buildsystem": "simple",
       "build-commands": [
-        "mv node-v22.20.0-linux-x64 /app/node",
+        "case \"$(uname -m)\" in aarch64) NODEARCH=arm64 ;; *) NODEARCH=x64 ;; esac",
+        "mv node-v22.20.0-linux-$NODEARCH /app/node",
         "ln -sf /app/node/bin/node /app/bin/node",
         "ln -sf /app/node/bin/npm /app/bin/npm",
         "ln -sf /app/node/bin/npx /app/bin/npx"
