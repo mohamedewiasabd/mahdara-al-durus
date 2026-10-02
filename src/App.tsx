@@ -381,13 +381,13 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center sm:p-2 md:p-4 text-slate-900 selection:bg-emerald-500 selection:text-white">
+    <div className="min-h-screen supports-[height:100dvh]:min-h-dvh bg-slate-950 flex items-center justify-center sm:p-2 md:p-4 text-slate-900 selection:bg-emerald-500 selection:text-white">
       {/* Mobile-First Device Wrapper */}
       <div
         className={`w-full transition-all duration-300 relative flex flex-col bg-white overflow-hidden ${
           isDesktopFrame
-            ? "max-w-md md:max-w-[460px] h-screen sm:h-[94vh] sm:rounded-[40px] shadow-2xl sm:ring-8 sm:ring-slate-800/80 sm:border sm:border-slate-700/50"
-            : "max-w-7xl h-screen sm:rounded-2xl shadow-xl"
+            ? "max-w-md md:max-w-[460px] h-screen supports-[height:100dvh]:h-dvh sm:h-[94vh] sm:rounded-[40px] shadow-2xl sm:ring-8 sm:ring-slate-800/80 sm:border sm:border-slate-700/50"
+            : "max-w-7xl h-screen supports-[height:100dvh]:h-dvh sm:rounded-2xl shadow-xl"
         }`}
       >
         {/* Mobile Top Bar */}

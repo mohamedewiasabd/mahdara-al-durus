@@ -194,7 +194,7 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
         </div>
       )}
 
-      <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-h-0 max-h-full overflow-y-auto p-4 space-y-4">
         {section === "plan" && (
           <PlanSection
             books={books}
