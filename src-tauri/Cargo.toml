@@ -1,6 +1,6 @@
 [package]
 name = "mahdara-al-durus"
-version = "1.1.0"
+version = "1.2.0"
 description = "محضر الدروس"
 authors = ["Mahdar Apps"]
 edition = "2021"
