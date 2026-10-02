@@ -32,8 +32,8 @@ ok(){ printf '\033[1;32m✓ %s\033[0m\n' "$*"; }
 #  يقرأ الإصدار الحالي من build.gradle، يرفع versionCode ويطبع إصداراً جديداً
 #  مع رفع versionCode +1، ويوازن version في tauri.conf.json و Cargo.toml
 #  و iOS pbxproj.
-VERSION_NAME="$(sed -nE 's/^[[:space:]]*versionName[[:space:]]+"([^"]+)".*/\1/p' android/app/build.gradle | head -1 | tr -d '[:space:]')"
-VERSION_CODE="$(sed -nE 's/^[[:space:]]*versionCode[[:space:]]+([0-9]+).*/\1/p' android/app/build.gradle | head -1 | tr -d '[:space:]')"
+VERSION_NAME="$(sed -nE 's/^[[:space:]]*(def[[:space:]]+)?appVersionName[[:space:]]*=[[:space:]]*"([^"]+)".*/\2/p' android/app/build.gradle | head -1 | tr -d '[:space:]')"
+VERSION_CODE="$(sed -nE 's/^[[:space:]]*(def[[:space:]]+)?appVersionCode[[:space:]]*=[[:space:]]*([0-9]+).*/\2/p' android/app/build.gradle | head -1 | tr -d '[:space:]')"
 VERSION="${VERSION_NAME:-1.1.0}"
 VCODE="${VERSION_CODE:-42}"
 
@@ -55,8 +55,8 @@ if [ "$skip_bump" = "0" ]; then
   VCODE=$(( VCODE + 1 ))
   log "الخطوة 0 — تصعيد الإصدار تلقائياً (إجباري) ${VERSION_NAME:-1.1.0} → ${VERSION}"
   printf '  ✓ versionCode %s → %s\n' "$VERSION_CODE" "$VCODE"
-  sed -i -E "s/(^[[:space:]]*versionCode[[:space:]]+)[0-9]+/\1${VCODE}/" android/app/build.gradle
-  sed -i -E 's/(^[[:space:]]*versionName[[:space:]]+)"[^"]*"/\1"'"${VERSION}"'"/' android/app/build.gradle
+  sed -i -E "s/(^[[:space:]]*(def[[:space:]]+)?appVersionCode[[:space:]]*=[[:space:]]*)[0-9]+/\1${VCODE}/" android/app/build.gradle
+  sed -i -E 's/(^[[:space:]]*(def[[:space:]]+)?appVersionName[[:space:]]*=[[:space:]]*)"[^"]*"/\1"'"${VERSION}"'"/' android/app/build.gradle
   sed -i -E 's/"version"[[:space:]]*:[[:space:]]*"[^"]*"/"version": "'"${VERSION}"'"/' src-tauri/tauri.conf.json
   sed -i -E 's/^version[[:space:]]*=[[:space:]]*"[^"]*"/version = "'"${VERSION}"'"/' src-tauri/Cargo.toml
   if [ -f ios/App/App.xcodeproj/project.pbxproj ]; then
