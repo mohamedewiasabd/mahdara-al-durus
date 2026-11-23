@@ -400,6 +400,15 @@ function AchievementsSection({ books, lessons }: { books: Book[]; lessons: Lesso
             </div>
           ))}
         </div>
+        {((progress.winStreak || 0) > 0 || !!progress.dailyMission) && (
+          <p className="text-[10px] text-emerald-50 mt-2 text-center">
+            {progress.winStreak ? `🔥 ${progress.winStreak} انتصار متتالي` : ""}
+            {progress.winStreak && progress.dailyMission ? " · " : ""}
+            {progress.dailyMission
+              ? `مهمة اليوم: ${progress.dailyMission.claimed ? "مكتملة ✓" : `${progress.dailyMission.progress}/${progress.dailyMission.target}`}`
+              : ""}
+          </p>
+        )}
       </div>
 
       {/* مسار الدروس */}

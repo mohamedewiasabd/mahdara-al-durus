@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import confetti from "canvas-confetti";
 import {
-  ArrowRight, Award, BookOpen, CheckCircle2, Gift, GraduationCap, Lock,
-  Play, Sparkles, Star, Trophy, UserRound, Users, X, Zap,
+  ArrowRight, Award, BookOpen, CheckCircle2, ChevronRight, EyeOff, Flame, Gift,
+  GraduationCap, Lock, Map, Play, Sparkles, Star, Target, Trophy, UserRound, Users, X, Zap,
 } from "lucide-react";
 import { Book, Lesson, StudentProfile, StudentProgress, ProgressSummary } from "../../types";
 import { localDb } from "../../services/db";
@@ -23,6 +23,23 @@ type LessonTab = "summary" | "flashcards" | "quiz" | "simplifiedExplanation" | "
 
 const AVATARS = ["🦊", "🐼", "🦁", "🐨", "🐯", "🐸", "🦄", "🐙", "🐣", "🚀", "🌟", "🎈"];
 
+const MISSION_LABELS: Record<string, { title: string; icon: string }> = {
+  read: { title: "افتح درسًا جديدًا اليوم", icon: "📖" },
+  cards: { title: "أتقن ٣ بطاقات استذكار", icon: "🧠" },
+  quiz: { title: "انجح في اختبار بـ ٧٠٪", icon: "✅" },
+};
+
+/** مقتطف حقيقي من محتوى الدرس التالي — يُطمس ليُثير الفضول لا ليُضلّل. */
+function lessonSecret(lesson: Lesson): string {
+  const raw = lesson.generatedTabs?.summary?.content;
+  if (typeof raw === "string" && raw.trim()) {
+    const clean = raw.replace(/[#*`>_|~[\]()]/g, "").replace(/\s+/g, " ").trim();
+    const first = clean.split(/[.!?؟]\s/)[0] || clean;
+    if (first.trim().length > 12) return first.trim().slice(0, 130);
+  }
+  return `في «${lesson.title}» أسرارٌ جديدة تنتظر أن تكتشفها.`;
+}
+
 interface Props {
   onBackToTeacher: () => void;
 }
@@ -40,6 +57,7 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [lessonTab, setLessonTab] = useState<LessonTab>("summary");
   const [celebration, setCelebration] = useState<LearningEventResult | null>(null);
+  const [giftRevealed, setGiftRevealed] = useState(false);
   const [showProfiles, setShowProfiles] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAvatar, setNewAvatar] = useState("🦊");
@@ -81,6 +99,12 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
     setSummary(summarize(profile, fresh, ctx));
   }, [profile, ctx]);
 
+  const showCelebration = useCallback((result: LearningEventResult | null) => {
+    if (!result) return;
+    setGiftRevealed(false);
+    setCelebration(result);
+  }, []);
+
   const handleCreateProfile = async () => {
     const name = newName.trim();
     if (!name) { setToast("اكتب اسمك أولًا"); return; }
@@ -95,15 +119,15 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
     setToast(`أهلًا ${name}! رحلتك بدأت 🌟`);
   };
 
-  const handleOpenLesson = async (lessonId: string, unlocked: boolean) => {
+  const handleOpenLesson = async (lessonId: string, unlocked: boolean, preferTab?: LessonTab) => {
     if (!unlocked) { setToast("أكمل الدرس السابق أولًا لفتح هذا الدرس 🔒"); return; }
     const lesson = lessons.find((l) => l.id === lessonId);
     if (!lesson || !profile || !ctx) return;
     setSelectedLesson(lesson);
-    setLessonTab("summary");
+    setLessonTab(preferTab || "summary");
     setView("lesson");
     const result = await markLessonOpen(profile, lesson, ctx);
-    if (result?.newBadges.length || result?.gift) setCelebration(result);
+    showCelebration(result);
     await refreshProgress();
   };
 
@@ -111,20 +135,43 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
     if (!profile || !ctx || !selectedLesson) return;
     const result = await recordQuiz(profile, selectedLesson, percentage, ctx);
     await refreshProgress();
-    setCelebration(result);
+    showCelebration(result);
   };
 
   const handleCardMastery = async (mastered: number, total: number) => {
     if (!profile || !ctx || !selectedLesson) return;
     const result = await recordFlashcards(profile, selectedLesson, mastered, total, ctx);
     await refreshProgress();
-    if (result && (result.xpGained >= 4 || result.newBadges.length || result.gift)) setCelebration(result);
+    if (result && (result.xpGained >= 4 || result.newBadges.length || result.gift || result.missionDone)) {
+      showCelebration(result);
+    }
   };
 
   const lessonContent = useMemo(() => {
     if (!selectedLesson) return null;
     return selectedLesson.generatedTabs || {};
   }, [selectedLesson]);
+
+  // الباب التالي في المسار — نُظهر منه مقتطفًا مموّهًا ليظلّ هناك ما يُكتشف.
+  const teaser = useMemo(() => {
+    if (!summary) return null;
+    const state = summary.lessons.find((s) => s.unlocked && !s.complete)
+      || summary.lessons.find((s) => s.unlocked)
+      || summary.lessons[0];
+    if (!state) return null;
+    const lesson = lessons.find((l) => l.id === state.lessonId);
+    if (!lesson) return null;
+    return { state, lesson, secret: lessonSecret(lesson) };
+  }, [summary, lessons]);
+
+  const revealGift = useCallback(() => {
+    setGiftRevealed(true);
+    confetti({ particleCount: 140, spread: 95, origin: { y: 0.5 } });
+    window.setTimeout(() => confetti({
+      particleCount: 70, spread: 120, origin: { y: 0.72 },
+      colors: ["#fbbf24", "#8b5cf6", "#10b981", "#f43f5e"],
+    }), 200);
+  }, []);
 
   if (loading) {
     return (
@@ -205,6 +252,9 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
                 <Zap className="w-3 h-3" /> {summary.totalXp} نقطة
               </span>
               {summary.streak > 0 && <span className="text-[10px] text-emerald-50 flex items-center gap-1">🔥 {summary.streak} أيام</span>}
+              {(progress?.winStreak || 0) > 0 && (
+                <span className="text-[10px] text-amber-200 flex items-center gap-1"><Flame className="w-3 h-3" /> {progress.winStreak} انتصار</span>
+              )}
             </div>
           </div>
         </div>
@@ -239,6 +289,86 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
       <div className="flex-1 min-h-0 max-h-full overflow-y-auto p-4 space-y-4">
         {view === "journey" && (
           <>
+            {/* مهمة اليوم — سبب جديد للعودة كل يوم، ومكافأة غامضة عند الإتمام */}
+            {progress?.dailyMission && (() => {
+              const m = progress.dailyMission;
+              const def = MISSION_LABELS[m.type] || MISSION_LABELS.read;
+              const missionPct = Math.min(100, Math.round((m.progress / Math.max(1, m.target)) * 100));
+              return (
+                <div className="rounded-2xl bg-linear-to-r from-amber-500 to-orange-500 text-white p-4 shadow-xs relative overflow-hidden">
+                  <div className="absolute -left-8 -top-8 w-28 h-28 rounded-full bg-white/10" />
+                  <div className="relative flex items-center gap-3">
+                    <div className="w-11 h-11 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">{def.icon}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] font-bold text-amber-100 flex items-center gap-1"><Target className="w-3 h-3" /> مهمة اليوم</p>
+                      <p className="font-black text-sm truncate">{def.title}</p>
+                      <p className="text-[10px] text-amber-50 mt-0.5">
+                        {m.claimed ? "تم استلام المكافأة ✓ تعال غدًا لتحديث جديد" : m.done ? "المهمة جاهزة — افتح صندوق المفاجأة!" : `${m.progress} / ${m.target} · مفاجأة عند الإتمام`}
+                      </p>
+                    </div>
+                    <div className="text-center shrink-0">
+                      <div className={`text-2xl ${m.done && !m.claimed ? "animate-bounce" : ""}`}>🎁</div>
+                      <p className="text-[8px] text-amber-50">غامضة</p>
+                    </div>
+                  </div>
+                  <div className="relative h-1.5 rounded-full bg-white/20 overflow-hidden mt-3">
+                    <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: `${m.claimed ? 100 : missionPct}%` }} />
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* خريطة الرحلة — تُمكّن التدرّج بصريًا وتُبقي المجهول مرئيًا */}
+            {summary.lessons.length > 0 && (
+              <div className="bg-white rounded-2xl border border-slate-200 p-3">
+                <p className="text-[11px] font-black text-slate-700 flex items-center gap-1.5 mb-2">
+                  <Map className="w-4 h-4 text-emerald-600" /> خريطة رحلتك
+                </p>
+                <div className="flex items-center overflow-x-auto pb-1">
+                  {summary.lessons.map((s, i) => (
+                    <React.Fragment key={s.lessonId}>
+                      <button onClick={() => void handleOpenLesson(s.lessonId, s.unlocked)}
+                        title={s.lessonTitle}
+                        className={`w-9 h-9 shrink-0 rounded-full flex items-center justify-center text-xs font-black border-2 transition-all active:scale-90 ${
+                          s.complete ? "bg-emerald-600 border-emerald-700 text-white"
+                            : s.unlocked ? "bg-amber-400 border-amber-500 text-amber-950 animate-pulse"
+                            : "bg-slate-100 border-slate-200 text-slate-400"
+                        }`}>
+                        {s.complete ? "✓" : s.unlocked ? i + 1 : "?"}
+                      </button>
+                      {i < summary.lessons.length - 1 && (
+                        <div className={`w-7 h-1 shrink-0 ${s.complete ? "bg-emerald-400" : "bg-slate-200"}`} />
+                      )}
+                    </React.Fragment>
+                  ))}
+                  <div className="w-8 h-8 shrink-0 rounded-full bg-violet-100 flex items-center justify-center text-base mr-1" title="النهاية">🏁</div>
+                </div>
+                <p className="text-[9px] text-slate-400 mt-1">كل باب يُفتح بعد الذي قبله — وكل «؟» يخفي مفاجأة.</p>
+              </div>
+            )}
+
+            {/* صندوق الفضول — مقتطف حقيقي من الدرس التالي ولكن مموّه */}
+            {teaser && (
+              <div className="rounded-2xl bg-linear-to-br from-slate-900 to-indigo-950 text-white p-4 border border-indigo-500/30">
+                <div className="flex items-center gap-2 mb-2">
+                  <EyeOff className="w-4 h-4 text-amber-300" />
+                  <p className="text-[11px] font-black">صندوق الفضول</p>
+                  <span className="mr-auto text-[9px] text-indigo-300">
+                    {teaser.state.complete ? "اكتمل" : teaser.state.unlocked ? "جاهز للكشف" : "مُقفل"}
+                  </span>
+                </div>
+                <p className="text-[10px] font-bold text-indigo-200 truncate">{teaser.lesson.title}</p>
+                <div className="relative mt-2 rounded-xl bg-white/5 border border-white/10 p-3 overflow-hidden">
+                  <p className="text-[11px] leading-relaxed text-white/70 blur-[5px] select-none" aria-hidden="true">{teaser.secret}</p>
+                  <div className="absolute inset-0 flex items-center justify-center"><span className="text-2xl drop-shadow-lg">🔒</span></div>
+                </div>
+                <button onClick={() => void handleOpenLesson(teaser.lesson.id, teaser.state.unlocked)}
+                  className="mt-3 w-full rounded-xl bg-amber-400 text-amber-950 text-xs font-black py-2.5 flex items-center justify-center gap-1 active:scale-[0.99]">
+                  {teaser.state.unlocked ? "اكشف السر الآن" : "أكمل السابق لفتح السر"} <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+
             <div className="rounded-2xl bg-linear-to-r from-violet-600 to-indigo-600 text-white p-4 shadow-xs">
               <div className="flex items-center gap-3">
                 <Trophy className="w-8 h-8 text-amber-200 shrink-0" />
@@ -248,6 +378,21 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
                     أكملت {summary.completedCount} من {summary.lessons.length} درس · {summary.badgesCount} شارة · {summary.giftsCount} هدية
                   </p>
                 </div>
+              </div>
+            </div>
+
+            {/* الهدية الغامضة القادمة — تُحوّل النقاط إلى هدف قريب ملموس */}
+            <div className="bg-white rounded-2xl border border-slate-200 p-4">
+              <div className="flex items-center gap-2">
+                <Gift className="w-4 h-4 text-violet-500" />
+                <p className="text-[11px] font-black text-slate-800">الهدية الغامضة القادمة</p>
+                <span className="mr-auto text-[9px] text-slate-400">المستوى {level + 1}</span>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-1">
+                تبقّى <b className="text-violet-700">{summary.xpToNext} نقطة</b> لفتح صندوق جديد — كل إجابة تقرّبك منه.
+              </p>
+              <div className="h-1.5 mt-2 rounded-full bg-slate-100 overflow-hidden">
+                <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${pctInLevel}%` }} />
               </div>
             </div>
 
@@ -264,8 +409,10 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
                 مراجعة: "bg-amber-100 text-amber-700", إتقان: "bg-emerald-100 text-emerald-700",
                 ممتاز: "bg-violet-100 text-violet-700",
               };
+              const needsReinforce = (state.recommendation === "تقوية" || state.recommendation === "مراجعة") && state.cardsTotal > 0;
               return (
-                <button key={state.lessonId} onClick={() => void handleOpenLesson(state.lessonId, state.unlocked)}
+                <button key={state.lessonId}
+                  onClick={() => void handleOpenLesson(state.lessonId, state.unlocked, needsReinforce ? "flashcards" : undefined)}
                   className={`w-full text-right bg-white rounded-2xl border p-4 shadow-2xs transition-all active:scale-[0.99] ${
                     state.unlocked ? "border-slate-200 hover:border-emerald-400" : "border-slate-100 opacity-70"
                   }`}>
@@ -290,6 +437,12 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
                         {state.cardsTotal > 0 && <span className="flex items-center gap-1">🧠 {state.mastered}/{state.cardsTotal} بطاقة</span>}
                         {state.quizBest > 0 && <span className="flex items-center gap-1">✅ اختبار {state.quizBest}%</span>}
                       </div>
+                      {needsReinforce && (
+                        <p className="text-[9px] text-rose-600 font-bold mt-1.5">🩹 سنبدأ بالبطاقات لتقوية نقاط ضعفك</p>
+                      )}
+                      {state.recommendation === "ممتاز" && (
+                        <p className="text-[9px] text-violet-600 font-bold mt-1.5">🌟 أتقنت هذا الدرس — تقدّم إلى ما بعده!</p>
+                      )}
                       <div className="h-1.5 mt-2 rounded-full bg-slate-100 overflow-hidden">
                         <div className="h-full bg-emerald-500 rounded-full transition-all"
                           style={{ width: `${state.complete ? 100 : state.quizBest || (state.read ? 20 : 0)}%` }} />
@@ -448,27 +601,65 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
         </div>
       )}
 
-      {/* احتفال الإنجاز/الهدية */}
+      {/* احتفال الإنجاز/الهدية — الهدية تُفتح بضغطة لزيادة عنصر المفاجأة */}
       {celebration && (
         <div className="absolute inset-0 z-70 bg-slate-950/60 flex items-center justify-center p-5" onClick={() => setCelebration(null)}>
           <div className="w-full max-w-xs bg-white rounded-3xl p-6 text-center shadow-2xl animate-in fade-in zoom-in-95"
-            onClick={(e) => { e.stopPropagation(); confetti({ particleCount: 110, spread: 75, origin: { y: 0.55 } }); }}>
-            <div className="text-5xl">{celebration.gift?.icon || "🎉"}</div>
-            <h3 className="font-black text-lg text-slate-900 mt-3">
-              {celebration.levelAfter > celebration.levelBefore ? "ترقية مستوى!" : celebration.newBadges.length ? "إنجاز جديد!" : "أحسنت!"}
-            </h3>
-            {celebration.gift && <p className="text-xs font-bold text-violet-700 mt-1">{celebration.gift.title} — {celebration.gift.message}</p>}
-            {celebration.newBadges.length > 0 && (
-              <div className="mt-3 flex flex-wrap justify-center gap-2">
-                {celebration.newBadges.map((b) => (
-                  <span key={b.id} className="text-[11px] bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1 font-bold">{b.icon} {b.title}</span>
-                ))}
-              </div>
+            onClick={(e) => {
+              e.stopPropagation();
+              if (celebration.gift && !giftRevealed) revealGift();
+              else confetti({ particleCount: 90, spread: 75, origin: { y: 0.55 } });
+            }}>
+            {celebration.gift && !giftRevealed ? (
+              <>
+                <div className="text-6xl animate-bounce">🎁</div>
+                <h3 className="font-black text-lg text-slate-900 mt-4">هدية مفاجأة لك!</h3>
+                <p className="text-xs text-slate-500 mt-2 leading-relaxed">اضغط على الصندوق لتكتشف ما أعددناه لك…</p>
+                <div className="mt-5 rounded-xl bg-violet-50 text-violet-700 text-xs font-black py-3">✨ افتح الهدية</div>
+              </>
+            ) : (
+              <>
+                <div className="text-5xl">{celebration.gift?.icon || "🎉"}</div>
+                <h3 className="font-black text-lg text-slate-900 mt-3">
+                  {celebration.levelAfter > celebration.levelBefore ? "ترقية مستوى! 🎉"
+                    : celebration.allGifts.length > 1 ? "مفاجآت متعددة! 🎊"
+                    : celebration.newBadges.length ? "إنجاز جديد!" : "أحسنت!"}
+                </h3>
+                {celebration.gift && <p className="text-xs font-bold text-violet-700 mt-1">{celebration.gift.title} — {celebration.gift.message}</p>}
+                {celebration.allGifts.length > 1 && (
+                  <p className="text-[10px] text-violet-500 mt-1">وصلتك {celebration.allGifts.length} هدايا دفعة واحدة!</p>
+                )}
+                {celebration.newBadges.length > 0 && (
+                  <div className="mt-3 flex flex-wrap justify-center gap-2">
+                    {celebration.newBadges.map((b) => (
+                      <span key={b.id} className="text-[11px] bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1 font-bold">{b.icon} {b.title}</span>
+                    ))}
+                  </div>
+                )}
+                {celebration.xpGained > 0 && <p className="text-xs text-emerald-700 font-bold mt-3">+{celebration.xpGained} نقطة ⚡</p>}
+                {celebration.missionDone && (
+                  <p className="text-[11px] bg-amber-50 text-amber-700 rounded-lg px-2 py-1.5 mt-2 font-bold">✅ مهمة اليوم مكتملة +{celebration.missionXp} نقطة</p>
+                )}
+                {celebration.streakBonus > 0 && (
+                  <p className="text-[11px] bg-rose-50 text-rose-700 rounded-lg px-2 py-1.5 mt-2 font-bold">🔥 سلسلة {celebration.streak} انتصار +{celebration.streakBonus} نقطة</p>
+                )}
+                {celebration.weakQuiz && lessonContent?.flashcards && (
+                  <button onClick={(e) => { e.stopPropagation(); setCelebration(null); setLessonTab("flashcards"); }}
+                    className="mt-3 w-full rounded-xl bg-rose-100 text-rose-700 text-xs font-bold py-2.5">
+                    💪 ابدأ خطة التقوية الآن
+                  </button>
+                )}
+                {celebration.strongQuiz && teaser && teaser.state.lessonId !== selectedLesson?.id && (
+                  <button onClick={(e) => { e.stopPropagation(); setCelebration(null); void handleOpenLesson(teaser.lesson.id, teaser.state.unlocked); }}
+                    className="mt-3 w-full rounded-xl bg-violet-100 text-violet-700 text-xs font-bold py-2.5">
+                    🚀 تقدّم إلى الدرس التالي
+                  </button>
+                )}
+                <button onClick={() => setCelebration(null)} className="mt-5 w-full rounded-xl bg-emerald-600 text-white font-bold text-sm py-3">
+                  متابعة المذاكرة
+                </button>
+              </>
             )}
-            {celebration.xpGained > 0 && <p className="text-xs text-emerald-700 font-bold mt-3">+{celebration.xpGained} نقطة ⚡</p>}
-            <button onClick={() => setCelebration(null)} className="mt-5 w-full rounded-xl bg-emerald-600 text-white font-bold text-sm py-3">
-              متابعة المذاكرة
-            </button>
           </div>
         </div>
       )}

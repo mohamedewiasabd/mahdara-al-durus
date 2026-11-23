@@ -245,6 +245,19 @@ export interface StudentProgress {
   history: { id: string; text: string; xp: number; at: string }[];
   lastActiveDate: string;
   streak: number;
+  /** مهمة يومية متجددة تمنح مكافأة غامضة عند إتمامها — تُعيد الطالب يوميًا. */
+  dailyMission?: {
+    date: string;
+    type: "quiz" | "cards" | "read";
+    target: number;
+    progress: number;
+    done: boolean;
+    claimed: boolean;
+  };
+  /** عدّادات اليوم تُغذّي المهمة دون الاعتماد على وقت الولوج. */
+  dailyCounters?: { date: string; reads: number; cardsMastered: number; quizzesPassed: number };
+  /** سلسلة الانتصارات المتتالية (اختبار ناجح أو إتقان بطاقات). */
+  winStreak?: number;
   updatedAt: string;
 }
 

@@ -63,6 +63,67 @@ function uid(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// ─── مهمة اليوم وسلسلة الانتصارات (محرك الفضول) ─────────────────────────
+export type MissionType = "quiz" | "cards" | "read";
+export interface MissionDef { type: MissionType; target: number; title: string; icon: string; hint: string }
+
+const MISSIONS: MissionDef[] = [
+  { type: "read", target: 1, title: "افتح درسًا جديدًا اليوم", icon: "📖", hint: "كل باب تفتحه يكشف سرًا جديدًا" },
+  { type: "cards", target: 3, title: "أتقن ٣ بطاقات استذكار", icon: "🧠", hint: "البطاقات هي مفتاح التذكر السريع" },
+  { type: "quiz", target: 1, title: "انجح في اختبار بـ ٧٠٪", icon: "✅", hint: "الاختبار يخبرك بما أتقنته فعلًا" },
+];
+const MISSION_BONUS = 12;
+const STREAK_BONUS = 10;
+
+/** مهمة اليوم تتناوب حسب اليوم — فيبقى هناك سبب جديد للعودة غدًا. */
+export function missionOfDay(date = todayKey()): MissionDef {
+  return MISSIONS[dayNumber(date) % MISSIONS.length];
+}
+
+function freshMission(): NonNullable<StudentProgress["dailyMission"]> {
+  const def = missionOfDay();
+  return { date: todayKey(), type: def.type, target: def.target, progress: 0, done: false, claimed: false };
+}
+
+function freshCounters(): NonNullable<StudentProgress["dailyCounters"]> {
+  return { date: todayKey(), reads: 0, cardsMastered: 0, quizzesPassed: 0 };
+}
+
+function countersFor(progress: StudentProgress): NonNullable<StudentProgress["dailyCounters"]> {
+  if (!progress.dailyCounters || progress.dailyCounters.date !== todayKey()) {
+    progress.dailyCounters = freshCounters();
+  }
+  return progress.dailyCounters;
+}
+
+function counterValue(c: NonNullable<StudentProgress["dailyCounters"]>, type: MissionType): number {
+  return type === "quiz" ? c.quizzesPassed : type === "cards" ? c.cardsMastered : c.reads;
+}
+
+/** يُستدعى بعد زيادة العدّادات: يربط المهمة بعدادها ويقرر إن استحقت المكافأة. */
+function resolveMission(progress: StudentProgress): { def: MissionDef; reward: boolean } {
+  const today = todayKey();
+  const def = missionOfDay(today);
+  const counters = countersFor(progress);
+  if (!progress.dailyMission || progress.dailyMission.date !== today) {
+    progress.dailyMission = freshMission();
+  }
+  const mission = progress.dailyMission;
+  mission.type = def.type;
+  mission.target = def.target;
+  mission.progress = counterValue(counters, def.type);
+  mission.done = mission.progress >= mission.target;
+  return { def, reward: mission.done && !mission.claimed };
+}
+
+/** انتصار = اختبار ناجح أو إتقان بطاقات. كل ٣ انتصارات مكافأة إضافية. */
+function bumpWinStreak(progress: StudentProgress, won: boolean) {
+  progress.winStreak = won ? (progress.winStreak || 0) + 1 : 0;
+  const streak = progress.winStreak || 0;
+  const milestone = won && streak > 0 && streak % 3 === 0;
+  return { streak, milestone, bonus: milestone ? STREAK_BONUS : 0 };
+}
+
 // ─── المستويات ───────────────────────────────────────────────────────────
 export function xpForLevel(level: number): number {
   return 40 * level * (level - 1);
@@ -112,16 +173,29 @@ export function emptyProgress(profileId: string): StudentProgress {
     history: [],
     lastActiveDate: "",
     streak: 0,
+    dailyMission: freshMission(),
+    dailyCounters: freshCounters(),
+    winStreak: 0,
     updatedAt: new Date().toISOString(),
   };
 }
 
 export async function getProgress(profileId: string): Promise<StudentProgress> {
   const row = (await localDb.kvGet(PROGRESS_STORE, profileId)) as StudentProgress | null;
-  if (row && row.id) return row;
-  const fresh = emptyProgress(profileId);
-  await localDb.kvPut(PROGRESS_STORE, fresh);
-  return fresh;
+  const progress = row && row.id ? row : emptyProgress(profileId);
+  // ترحيل هادئ للملفات المحفوظة قبل إضافة مهمة اليوم — بلا تغيير رقم قاعدة البيانات.
+  let dirty = !row || !row.id;
+  if (!progress.dailyMission || progress.dailyMission.date !== todayKey()) {
+    progress.dailyMission = freshMission();
+    dirty = true;
+  }
+  if (!progress.dailyCounters || progress.dailyCounters.date !== todayKey()) {
+    progress.dailyCounters = freshCounters();
+    dirty = true;
+  }
+  if (typeof progress.winStreak !== "number") { progress.winStreak = 0; dirty = true; }
+  if (dirty) await localDb.kvPut(PROGRESS_STORE, progress);
+  return progress;
 }
 
 export async function saveProgress(progress: StudentProgress): Promise<void> {
@@ -252,8 +326,10 @@ function touchDay(progress: StudentProgress): void {
 
 function addXp(progress: StudentProgress, amount: number, text: string): void {
   progress.earnedXp += amount;
-  progress.history.unshift({ id: uid("h"), text, xp: amount, at: new Date().toISOString() });
-  progress.history = progress.history.slice(0, 60);
+  if (amount > 0) {
+    progress.history.unshift({ id: uid("h"), text, xp: amount, at: new Date().toISOString() });
+    progress.history = progress.history.slice(0, 60);
+  }
 }
 
 function evaluateBadges(
@@ -302,6 +378,24 @@ export interface LearningEventResult {
   levelAfter: number;
   newBadges: BadgeDef[];
   gift: StudentProgress["gifts"][number] | null;
+  /** كل المفاجآت التي وصلت دفعة واحدة (قد تكون أكثر من هدية). */
+  allGifts: StudentProgress["gifts"];
+  missionDone: boolean;
+  missionXp: number;
+  streak: number;
+  streakBonus: number;
+  weakQuiz: boolean;
+  strongQuiz: boolean;
+}
+
+interface EventExtras {
+  missionXp?: number;
+  missionDone?: boolean;
+  streak?: number;
+  streakBonus?: number;
+  streakMilestone?: boolean;
+  weakQuiz?: boolean;
+  strongQuiz?: boolean;
 }
 
 async function finishEvent(
@@ -309,26 +403,42 @@ async function finishEvent(
   progress: StudentProgress,
   ctx: SummaryContext,
   xpGained: number,
-  text: string
+  text: string,
+  extras: EventExtras = {}
 ): Promise<LearningEventResult> {
   // progress.earnedXp ما زال قبل إضافة نقاط هذا الحدث — هنا نحسب المستوى الحالي.
   const levelBefore = summarize(profile, progress, ctx).level;
   touchDay(progress);
-  addXp(progress, xpGained, text);
+  const bonusXp = (extras.missionXp || 0) + (extras.streakBonus || 0);
+  addXp(progress, xpGained + bonusXp, text);
   const summary = summarize(profile, progress, ctx);
   const levelAfter = summary.level;
   const newBadges = evaluateBadges(progress, summary, ctx, profile);
-  let gift: StudentProgress["gifts"][number] | null = null;
-  if (levelAfter > levelBefore) {
-    gift = randomGift(`ترقّيت إلى المستوى ${levelAfter}`);
-  } else if (newBadges.length > 0) {
-    gift = randomGift(`إنجاز جديد: ${newBadges[0].title}`);
-  } else if (xpGained >= 20 && Math.random() < 0.3) {
-    gift = randomGift("مفاجأة بعد إجابات رائعة");
-  }
-  if (gift) progress.gifts.unshift(gift);
+
+  const gifts: StudentProgress["gifts"] = [];
+  if (levelAfter > levelBefore) gifts.push(randomGift(`ترقّيت إلى المستوى ${levelAfter}`));
+  if (newBadges.length > 0) gifts.push(randomGift(`إنجاز جديد: ${newBadges[0].title}`));
+  if (extras.missionDone) gifts.push(randomGift("مكافأة مهمة اليوم"));
+  if (extras.streakMilestone) gifts.push(randomGift(`سلسلة ${extras.streak} انتصار`));
+  if (!gifts.length && xpGained >= 20 && Math.random() < 0.3) gifts.push(randomGift("مفاجأة بعد إجابات رائعة"));
+  if (gifts.length) progress.gifts.unshift(...gifts);
+  if (extras.missionDone && progress.dailyMission) progress.dailyMission.claimed = true;
+
   await saveProgress(progress);
-  return { xpGained, levelBefore, levelAfter, newBadges, gift };
+  return {
+    xpGained,
+    levelBefore,
+    levelAfter,
+    newBadges,
+    gift: gifts[0] || null,
+    allGifts: gifts,
+    missionDone: !!extras.missionDone,
+    missionXp: extras.missionXp || 0,
+    streak: extras.streak || progress.winStreak || 0,
+    streakBonus: extras.streakBonus || 0,
+    weakQuiz: !!extras.weakQuiz,
+    strongQuiz: !!extras.strongQuiz,
+  };
 }
 
 export async function markLessonOpen(
@@ -340,17 +450,12 @@ export async function markLessonOpen(
   const today = todayKey();
   if (progress.openedLessons[lesson.id] === today) return null;
   progress.openedLessons[lesson.id] = today;
-  touchDay(progress);
-  await saveProgress(progress);
-  const summary = summarize(profile, progress, ctx);
-  const fresh = evaluateBadges(progress, summary, ctx, profile);
-  let gift: StudentProgress["gifts"][number] | null = null;
-  if (fresh.length) {
-    gift = randomGift(`إنجاز جديد: ${fresh[0].title}`);
-    progress.gifts.unshift(gift);
-    await saveProgress(progress);
-  }
-  return { xpGained: 0, levelBefore: summary.level, levelAfter: summary.level, newBadges: fresh, gift };
+  countersFor(progress).reads++;
+  const daily = resolveMission(progress);
+  return finishEvent(profile, progress, ctx, 0, `قرأت «${lesson.title}»`, {
+    missionXp: daily.reward ? MISSION_BONUS : 0,
+    missionDone: daily.reward,
+  });
 }
 
 export async function recordQuiz(
@@ -376,7 +481,18 @@ export async function recordQuiz(
       xp += 15;
     }
   }
-  return finishEvent(profile, progress, ctx, xp, `اختبار «${lesson.title}» — ${best}%`);
+  if (best >= 70) countersFor(progress).quizzesPassed++;
+  const win = bumpWinStreak(progress, best >= 70);
+  const daily = resolveMission(progress);
+  return finishEvent(profile, progress, ctx, xp, `اختبار «${lesson.title}» — ${best}%`, {
+    missionXp: daily.reward ? MISSION_BONUS : 0,
+    missionDone: daily.reward,
+    streak: win.streak,
+    streakBonus: win.bonus,
+    streakMilestone: win.milestone,
+    weakQuiz: best > 0 && best < 70,
+    strongQuiz: best >= 90,
+  });
 }
 
 export async function recordFlashcards(
@@ -391,15 +507,26 @@ export async function recordFlashcards(
   const old = progress.flashcards[lesson.id]?.mastered || 0;
   if (mastered <= old) return null;
   progress.flashcards[lesson.id] = { mastered, total, lastAt: new Date().toISOString() };
-  const xp = (mastered - old) * 2;
+  let xp = (mastered - old) * 2;
+  let text = `بطاقات «${lesson.title}»: ${mastered}/${total}`;
   if (!progress.completedLessons.includes(lesson.id)) {
     const after = summarize(profile, progress, ctx).lessons.find((l) => l.lessonId === lesson.id);
     if (after?.complete) {
       progress.completedLessons.push(lesson.id);
-      return finishEvent(profile, progress, ctx, xp + 15, `إتقان بطاقات «${lesson.title}»`);
+      xp += 15;
+      text = `إتقان بطاقات «${lesson.title}»`;
     }
   }
-  return finishEvent(profile, progress, ctx, xp, `بطاقات «${lesson.title}»: ${mastered}/${total}`);
+  countersFor(progress).cardsMastered += mastered - old;
+  const win = bumpWinStreak(progress, mastered >= Math.ceil(total * 0.8));
+  const daily = resolveMission(progress);
+  return finishEvent(profile, progress, ctx, xp, text, {
+    missionXp: daily.reward ? MISSION_BONUS : 0,
+    missionDone: daily.reward,
+    streak: win.streak,
+    streakBonus: win.bonus,
+    streakMilestone: win.milestone,
+  });
 }
 
 export async function loadSummaryContext(books: Book[], lessons: Lesson[]): Promise<SummaryContext> {
