@@ -1,7 +1,7 @@
 import { Book, Lesson, TabId, TabContentRecord } from "../types";
 
 const DB_NAME = "MahdarAlDurusDB";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 const KV_STORES = [
   "classes",
@@ -11,6 +11,8 @@ const KV_STORES = [
   "homework",
   "questionBank",
   "plans",
+  "profiles",
+  "progress",
 ] as const;
 
 function ensureStores(db: IDBDatabase) {
@@ -205,7 +207,8 @@ class LocalDatabase {
     }
   }
 
-  private async getAllLessonsRaw(): Promise<Lesson[]> {
+  /** كل الدروس في كل الكتب — يُستخدم في مسار الطالب وفي النسخ الاحتياطي. */
+  public async getAllLessonsRaw(): Promise<Lesson[]> {
     if (this.db) {
       return new Promise((resolve, reject) => {
         try {

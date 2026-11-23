@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Book, Lesson, TabId, TabContentRecord } from "./types";
 import { TABS_CONFIG } from "./data/tabs";
 import { localDb } from "./services/db";
@@ -13,6 +13,14 @@ import { MobileDatabaseModal } from "./components/mobile/MobileDatabaseModal";
 import { MobileOurAppsSheet } from "./components/mobile/MobileOurAppsSheet";
 import { DeleteBookModal } from "./components/DeleteBookModal";
 import { LessonViewerHandle } from "./components/LessonViewer";
+import { StudentApp } from "./components/student/StudentApp";
+import {
+  getActiveProfileId,
+  getProfiles,
+  loadSummaryContext,
+  recordFlashcards,
+  recordQuiz,
+} from "./services/learning";
 import { initAds, maybeShowInterstitial, showRewardedAd, isNativeApp as adsNative } from "./utils/ads";
 import {
   BookOpen,
@@ -40,6 +48,22 @@ export default function App() {
   const [isDesktopFrame, setIsDesktopFrame] = useState(true); // Smartphone canvas frame on desktop
   const [isLoadingDB, setIsLoadingDB] = useState(true);
   const [generatingAllTabs, setGeneratingAllTabs] = useState(false);
+
+  // وضع التطبيق: معلم / طالب — يعمل كل منهما منفردًا على نفس الجهاز.
+  const [appMode, setAppMode] = useState<"teacher" | "student">(() => {
+    try {
+      return localStorage.getItem("mahdara.appMode") === "student" ? "student" : "teacher";
+    } catch {
+      return "teacher";
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("mahdara.appMode", appMode);
+    } catch {
+      /* ignore */
+    }
+  }, [appMode]);
 
   // Ads + batch generation refs
   const lessonViewerRef = useRef<LessonViewerHandle>(null);
@@ -364,6 +388,26 @@ export default function App() {
 
   const selectedLesson = lessons.find((l) => l.id === selectedLessonId);
 
+  // في وضع المعلم: إن كان هناك ملف طالب نشط على الجهاز، تُسجَّل نتائج
+  // الاختبار وإتقان البطاقات في مساره حتى لو استخدم واجهة التحضير.
+  const recordForActiveStudent = useCallback(
+    async (kind: "quiz" | "cards", first: number, second?: number) => {
+      try {
+        const pid = getActiveProfileId();
+        if (!pid || !selectedLesson) return;
+        const profiles = await getProfiles();
+        const profile = profiles.find((p) => p.id === pid);
+        if (!profile) return;
+        const ctx = await loadSummaryContext(books, lessons);
+        if (kind === "quiz") await recordQuiz(profile, selectedLesson, first, ctx);
+        else await recordFlashcards(profile, selectedLesson, first, second || 0, ctx);
+      } catch (e) {
+        console.error(e);
+      }
+    },
+    [selectedLesson, books, lessons]
+  );
+
   if (isLoadingDB) {
     return (
       <div className="h-screen w-screen flex flex-col items-center justify-center bg-slate-900 text-white gap-4">
@@ -401,9 +445,14 @@ export default function App() {
           onOpenDatabase={() => setIsDatabaseModalOpen(true)}
           onOpenApps={() => setIsAppsSheetOpen(true)}
           onDeleteBookRequest={handleOpenDeleteBookModal}
+          appMode={appMode}
+          onToggleMode={() => setAppMode((m) => (m === "teacher" ? "student" : "teacher"))}
         />
 
-        {/* Dynamic Mobile Screen Body */}
+        {/* Dynamic Mobile Screen Body — وضع الطالب مستقل تمامًا عن واجهة المعلم */}
+        {appMode === "student" ? (
+          <StudentApp onBackToTeacher={() => setAppMode("teacher")} />
+        ) : (
         <div className="flex-1 flex overflow-hidden relative">
           {/* 1. LESSONS TAB VIEW (When mobile tab is 'lessons') */}
           {mobileActiveNav === "lessons" && (
@@ -456,6 +505,10 @@ export default function App() {
                   lessonIndex={currentLessonIndex}
                   totalLessons={lessons.length}
                   onOpenLessonsDrawer={() => setMobileActiveNav("lessons")}
+                  onQuizResult={(pct) => void recordForActiveStudent("quiz", pct)}
+                  onFlashcardMastery={(mastered, total) =>
+                    void recordForActiveStudent("cards", mastered, total)
+                  }
                 />
               ) : (
                 <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
@@ -492,9 +545,10 @@ export default function App() {
             />
           )}
         </div>
+        )}
 
-        {/* Bottom Mobile Tab Bar */}
-        <MobileTabBar
+        {/* Bottom Mobile Tab Bar — مخصّص لوضع المعلم فقط */}
+        {appMode === "teacher" && <MobileTabBar
           activeNav={mobileActiveNav}
           onSelectNav={handleNavTabChange}
           onOpenUploadModal={() => setIsUploadModalOpen(true)}
@@ -505,7 +559,7 @@ export default function App() {
               ? Object.keys(selectedLesson.generatedTabs).length
               : 0
           }
-        />
+        />}
 
         {/* 10 AI Tools Bottom Sheet */}
         <MobileToolsSheet

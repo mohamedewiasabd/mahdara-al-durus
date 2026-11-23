@@ -1,13 +1,15 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { FlashcardsData, FlashcardItem } from "../../types";
 import { ChevronRight, ChevronLeft, Shuffle, RotateCcw, Check, Sparkles, HelpCircle, Layers, Grid, Play } from "lucide-react";
 
 interface Props {
   data: FlashcardsData;
   onRegenerate?: () => void;
+  /** يُستدعى عند تغيّر عدد البطاقات المتقنة — لحفظ تقدّم الطالب. */
+  onMasteryChange?: (mastered: number, total: number) => void;
 }
 
-export const TabRendererFlashcards: React.FC<Props> = ({ data }) => {
+export const TabRendererFlashcards: React.FC<Props> = ({ data, onMasteryChange }) => {
   const initialCards = data?.cards || [];
   const [cards, setCards] = useState<FlashcardItem[]>(initialCards);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -15,6 +17,14 @@ export const TabRendererFlashcards: React.FC<Props> = ({ data }) => {
   const [showHint, setShowHint] = useState(false);
   const [masteredIds, setMasteredIds] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<"card" | "grid">("card");
+
+  const currentMastered = Object.values(masteredIds).filter(Boolean).length;
+  const reportedMastery = useRef(0);
+  useEffect(() => {
+    if (reportedMastery.current === currentMastered) return;
+    reportedMastery.current = currentMastered;
+    if (currentMastered > 0) onMasteryChange?.(currentMastered, initialCards.length);
+  }, [currentMastered, initialCards.length, onMasteryChange]);
 
   if (!initialCards || initialCards.length === 0) {
     return (

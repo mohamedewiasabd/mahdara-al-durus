@@ -205,3 +205,75 @@ export interface Book {
     lessonIds: string[];
   }[];
 }
+
+// ─── مسار الطالب: المستويات والإنجازات والهدايا (Phase 4) ───────────────
+/** ملف طالب محلي مستقل — لا حساب ولا تسجيل دخول. */
+export interface StudentProfile {
+  id: string;
+  name: string;
+  avatar: string; // رمز تعبيري اختياري
+  studentId?: string; // ربط اختياري بطالب المعلم في الفصل
+  classId?: string;
+  createdAt: string;
+}
+
+/** أفضل نتيجة اختبار لطالب في درس. */
+export interface QuizBest {
+  best: number; // 0..100
+  attempts: number;
+  lastAt: string;
+}
+
+/** إتقان بطاقات الاستذكار لطالب في درس. */
+export interface FlashcardBest {
+  mastered: number;
+  total: number;
+  lastAt: string;
+}
+
+/** سجل تقدّم طالب كامل (يُخزَّن كصف واحد في متجر KV «progress»). */
+export interface StudentProgress {
+  id: string; // = profileId
+  profileId: string;
+  earnedXp: number; // نقاط من أحداث التعلّم (لا تُحتسب مرتين)
+  quiz: Record<string, QuizBest>; // مفتاحه lesson.id
+  flashcards: Record<string, FlashcardBest>;
+  openedLessons: Record<string, string>; // lesson.id → آخر تاريخ فتح
+  completedLessons: string[];
+  badges: { id: string; at: string }[];
+  gifts: { id: string; icon: string; title: string; message: string; reason: string; at: string }[];
+  history: { id: string; text: string; xp: number; at: string }[];
+  lastActiveDate: string;
+  streak: number;
+  updatedAt: string;
+}
+
+/** حالة درس محسوبة للعرض في مسار الطالب. */
+export interface LessonJourneyState {
+  lessonId: string;
+  lessonTitle: string;
+  bookTitle: string;
+  read: boolean;
+  quizBest: number;
+  mastered: number;
+  cardsTotal: number;
+  complete: boolean;
+  recommendation: "جديد" | "تقوية" | "مراجعة" | "إتقان" | "ممتاز";
+  unlocked: boolean;
+}
+
+/** نتيجة محسوبة للوحة الطالب/المعلم. */
+export interface ProgressSummary {
+  totalXp: number;
+  baseXp: number;
+  earnedXp: number;
+  level: number;
+  xpInLevel: number;
+  xpToNext: number;
+  streak: number;
+  completedCount: number;
+  badgesCount: number;
+  giftsCount: number;
+  lessons: LessonJourneyState[];
+  nextLessonId: string | null;
+}

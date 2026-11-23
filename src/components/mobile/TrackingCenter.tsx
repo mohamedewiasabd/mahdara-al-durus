@@ -17,9 +17,28 @@ import {
   ClipboardCopy,
   FileText,
   BookMarked,
+  Trophy,
+  Gift,
 } from "lucide-react";
-import { Book, Lesson, AttendanceStatus, AttendanceRecord } from "../../types";
+import {
+  Book,
+  Lesson,
+  AttendanceStatus,
+  AttendanceRecord,
+  StudentProfile,
+  StudentProgress,
+  ProgressSummary,
+} from "../../types";
 import { generateSemesterPlanWithAI } from "../../services/ai";
+import {
+  BADGES,
+  getProfiles,
+  getProgress,
+  loadSummaryContext,
+  saveProfile,
+  summarize,
+  xpForLevel,
+} from "../../services/learning";
 import {
   getClasses,
   saveClass,
@@ -42,9 +61,10 @@ import {
   getPlans,
   savePlan,
   deletePlan,
+  getStudents as getTeacherStudents,
 } from "../../services/teacherData";
 
-type Section = "plan" | "attend" | "grades" | "homework" | "bank";
+type Section = "plan" | "attend" | "grades" | "homework" | "bank" | "achievements";
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const todayISO = () => new Date().toISOString().slice(0, 10);
@@ -80,7 +100,7 @@ interface Props {
   onClose: () => void;
 }
 
-const VALID_SECTIONS: Section[] = ["plan", "attend", "grades", "homework", "bank"];
+const VALID_SECTIONS: Section[] = ["plan", "attend", "grades", "homework", "bank", "achievements"];
 
 export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId, defaultLessonTitle, onClose }) => {
   // ---- shared selection across sections (tied to the lesson being taught) ----
@@ -167,6 +187,7 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
             ["grades", "الدرجات", GraduationCap],
             ["homework", "الواجبات", BookOpenCheck],
             ["bank", "بنك الأسئلة", Library],
+            ["achievements", "الإنجازات", Trophy],
           ] as [Section, string, any][]
         ).map(([id, label, Icon]) => (
           <button
@@ -239,10 +260,221 @@ export const TrackingCenter: React.FC<Props> = ({ books, lessons, defaultBookId,
           />
         )}
         {section === "bank" && <BankSection bookLessons={bookLessons} />}
+        {section === "achievements" && (
+          <AchievementsSection books={books} lessons={lessons} />
+        )}
       </div>
     </div>
   );
 };
+
+/* ================= ACHIEVEMENTS SECTION (مسار الطالب — منظور المعلم) ================= */
+function AchievementsSection({ books, lessons }: { books: Book[]; lessons: Lesson[] }) {
+  const [rows, setRows] = useState<
+    { profile: StudentProfile; progress: StudentProgress; summary: ProgressSummary }[]
+  >([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [classStudents, setClassStudents] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    const [profiles, ctx, teacherStudents] = await Promise.all([
+      getProfiles(),
+      loadSummaryContext(books, lessons),
+      getTeacherStudents(),
+    ]);
+    setClassStudents(teacherStudents);
+    const next = await Promise.all(
+      profiles.map(async (profile) => {
+        const progress = await getProgress(profile.id);
+        return { profile, progress, summary: summarize(profile, progress, ctx) };
+      })
+    );
+    setRows(next);
+    setSelectedId((prev) => (prev && next.some((r) => r.profile.id === prev) ? prev : next[0]?.profile.id || null));
+    setLoading(false);
+  }, [books, lessons]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-slate-400 gap-2 text-xs">
+        <Loader2 className="w-4 h-4 animate-spin" /> تُحمَّل الإنجازات…
+      </div>
+    );
+  }
+
+  if (rows.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center">
+        <Trophy className="w-11 h-11 text-amber-300 mx-auto" />
+        <p className="font-bold text-sm text-slate-700 mt-3">لا توجد ملفات طلاب بعد</p>
+        <p className="text-[11px] text-slate-500 mt-2 leading-relaxed">
+          افتح «وضع الطالب» من الشريط العلوي وأنشئ ملفًا للطالب — ستظهر هنا مستوياته
+          وشاراته وهداياه تلقائيًا، وكل البيانات محفوظة على هذا الجهاز.
+        </p>
+      </div>
+    );
+  }
+
+  const active = rows.find((r) => r.profile.id === selectedId) || rows[0];
+  const { profile, progress, summary } = active;
+  const levelSpan = Math.max(1, xpForLevel(summary.level + 1) - xpForLevel(summary.level));
+  const pct = Math.min(100, Math.round((summary.xpInLevel / levelSpan) * 100));
+
+  return (
+    <div className="space-y-4">
+      {/* اختيار الطالب */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {rows.map((r) => (
+          <button
+            key={r.profile.id}
+            onClick={() => setSelectedId(r.profile.id)}
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-bold whitespace-nowrap transition-colors ${
+              r.profile.id === active.profile.id
+                ? "border-emerald-500 bg-emerald-50 text-emerald-800"
+                : "border-slate-200 bg-white text-slate-600"
+            }`}
+          >
+            <span className="text-lg">{r.profile.avatar}</span>
+            <span>{r.profile.name}</span>
+            <span className="text-[10px] text-amber-600">L{r.summary.level}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* ربط اختياري بطالب المعلم — فيُحتسب حضوره ودرجاته وواجباته في المستوى */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3">
+        <p className="text-[11px] font-bold text-slate-700 mb-2">
+          ربط بصف المعلم (ليُضاف الحضور والدرجات والواجبات إلى المستوى)
+        </p>
+        <select
+          value={profile.studentId || ""}
+          onChange={async (e) => {
+            await saveProfile({ ...profile, studentId: e.target.value || undefined });
+            await load();
+          }}
+          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs text-slate-700 outline-none focus:border-emerald-500"
+        >
+          <option value="">تطابق بالاسم فقط</option>
+          {classStudents.map((s) => (
+            <option key={s.id} value={s.id}>{s.name}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* بطاقة المستوى */}
+      <div className="rounded-2xl bg-linear-to-br from-emerald-600 to-teal-700 text-white p-4 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center text-2xl shrink-0">
+            {profile.avatar}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-black text-sm truncate">{profile.name}</p>
+            <div className="flex flex-wrap items-center gap-2 mt-1 text-[10px]">
+              <span className="bg-amber-400 text-amber-950 font-black rounded-full px-2 py-0.5">
+                المستوى {summary.level}
+              </span>
+              <span>⚡ {summary.totalXp} نقطة</span>
+              {summary.streak > 0 && <span>🔥 {summary.streak} أيام</span>}
+            </div>
+          </div>
+        </div>
+        <div className="h-2 rounded-full bg-white/20 overflow-hidden mt-3">
+          <div className="h-full bg-amber-300 rounded-full transition-all" style={{ width: `${pct}%` }} />
+        </div>
+        <p className="text-[10px] text-emerald-50 mt-1 text-center">
+          {summary.xpInLevel} / {levelSpan} نقطة للمستوى التالي
+        </p>
+        <div className="grid grid-cols-4 gap-2 mt-3 text-center">
+          {[
+            ["درسًا", summary.completedCount],
+            ["شارة", summary.badgesCount],
+            ["هدية", summary.giftsCount],
+            ["اختبار", Object.keys(progress.quiz).length],
+          ].map(([label, value]) => (
+            <div key={String(label)} className="bg-white/10 rounded-xl py-2">
+              <p className="font-black text-sm">{value}</p>
+              <p className="text-[9px] text-emerald-50">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* مسار الدروس */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <p className="font-black text-xs text-slate-800 flex items-center gap-2 mb-3">
+          <BookMarked className="w-4 h-4 text-emerald-600" /> مسار الدروس
+        </p>
+        <div className="space-y-2 max-h-56 overflow-y-auto pl-1">
+          {summary.lessons.map((state) => {
+            const label = state.recommendation;
+            const cls: Record<string, string> = {
+              جديد: "bg-slate-100 text-slate-600", تقوية: "bg-rose-100 text-rose-700",
+              مراجعة: "bg-amber-100 text-amber-700", إتقان: "bg-emerald-100 text-emerald-700",
+              ممتاز: "bg-violet-100 text-violet-700",
+            };
+            return (
+              <div key={state.lessonId} className="flex items-center gap-2 border-b border-slate-100 pb-2 last:border-0">
+                <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-[10px] font-black shrink-0 ${
+                  state.complete ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-500"
+                }`}>{state.complete ? "✓" : state.unlocked ? "•" : "🔒"}</span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-bold text-slate-800 truncate">{state.lessonTitle}</p>
+                  <p className="text-[9px] text-slate-400 truncate">{state.bookTitle}</p>
+                </div>
+                <span className={`text-[9px] font-bold rounded-full px-2 py-0.5 shrink-0 ${cls[label]}`}>{label}</span>
+              </div>
+            );
+          })}
+          {summary.lessons.length === 0 && (
+            <p className="text-[11px] text-slate-400 text-center py-3">لا توجد دروس محفوظة.</p>
+          )}
+        </div>
+      </div>
+
+      {/* الشارات */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <p className="font-black text-xs text-slate-800 flex items-center gap-2 mb-3">
+          <Trophy className="w-4 h-4 text-amber-500" /> الشارات ({summary.badgesCount}/{BADGES.length})
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          {BADGES.map((badge) => {
+            const earned = progress.badges.find((b) => b.id === badge.id);
+            return (
+              <div key={badge.id} title={badge.description}
+                className={`rounded-xl border p-2 text-center ${earned ? "bg-amber-50 border-amber-200" : "bg-slate-50 border-slate-200 opacity-50"}`}>
+                <div className="text-xl">{earned ? badge.icon : "🔒"}</div>
+                <p className="text-[9px] font-bold text-slate-700 mt-1 leading-tight">{badge.title}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* الهدايا */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-4">
+        <p className="font-black text-xs text-slate-800 flex items-center gap-2 mb-3">
+          <Gift className="w-4 h-4 text-violet-500" /> الهدايا المفاجئة ({summary.giftsCount})
+        </p>
+        {progress.gifts.length > 0 ? (
+          <div className="grid grid-cols-2 gap-2">
+            {progress.gifts.slice(0, 12).map((gift) => (
+              <div key={gift.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-2 text-center">
+                <div className="text-xl">{gift.icon}</div>
+                <p className="text-[9px] font-bold text-slate-700 mt-1">{gift.title}</p>
+                <p className="text-[8px] text-amber-700 mt-0.5 leading-tight">{gift.reason}</p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-[11px] text-slate-400 text-center py-3">لم تصل هدايا بعد.</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 /* ================= PLAN SECTION ================= */
 function PlanSection({

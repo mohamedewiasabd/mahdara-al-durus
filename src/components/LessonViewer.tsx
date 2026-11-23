@@ -84,6 +84,9 @@ interface Props {
   lessonIndex?: number;
   totalLessons?: number;
   onOpenLessonsDrawer?: () => void;
+  /** مسار الطالب: حفظ نتيجة الاختبار/إتقان البطاقات عند وجود ملف طالب نشط. */
+  onQuizResult?: (percentage: number) => void;
+  onFlashcardMastery?: (mastered: number, total: number) => void;
   ref?: React.Ref<LessonViewerHandle>;
 }
 
@@ -134,6 +137,8 @@ export const LessonViewer: React.FC<Props> = ({
   lessonIndex,
   totalLessons,
   onOpenLessonsDrawer,
+  onQuizResult,
+  onFlashcardMastery,
   ref,
 }) => {
   const [internalActiveTabId, setInternalActiveTabId] = useState<TabId>("summary");
@@ -927,7 +932,7 @@ export const LessonViewer: React.FC<Props> = ({
                 )}
 
                 {activeTabId === "quiz" && (
-                  <TabRendererQuiz data={currentTabRecord.data} />
+                  <TabRendererQuiz data={currentTabRecord.data} onResult={onQuizResult} />
                 )}
 
                 {activeTabId === "glossary" && (
@@ -941,7 +946,7 @@ export const LessonViewer: React.FC<Props> = ({
                 )}
 
                 {activeTabId === "flashcards" && (
-                  <TabRendererFlashcards data={currentTabRecord.data} />
+                  <TabRendererFlashcards data={currentTabRecord.data} onMasteryChange={onFlashcardMastery} />
                 )}
 
                 {activeTabId === "criticalThinking" && (

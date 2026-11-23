@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { QuizData, QuizQuestion } from "../../types";
 import { CheckCircle2, XCircle, HelpCircle, RotateCcw, Eye, Award, Check, Sparkles } from "lucide-react";
 import confetti from "canvas-confetti";
@@ -6,9 +6,11 @@ import confetti from "canvas-confetti";
 interface Props {
   data: QuizData;
   onRegenerate?: () => void;
+  /** يُستدعى مرة عند اكتمال الإجابات — لحفظ نتيجة الطالب في مساره. */
+  onResult?: (percentage: number) => void;
 }
 
-export const TabRendererQuiz: React.FC<Props> = ({ data }) => {
+export const TabRendererQuiz: React.FC<Props> = ({ data, onResult }) => {
   const questions = data?.questions || [];
   const [selectedAnswers, setSelectedAnswers] = useState<Record<string, number | boolean>>({});
   const [revealedExplanations, setRevealedExplanations] = useState<Record<string, boolean>>({});
@@ -75,6 +77,16 @@ export const TabRendererQuiz: React.FC<Props> = ({ data }) => {
   };
 
   const isCompleted = mcqAndTfQuestions.length > 0 && answeredCount === mcqAndTfQuestions.length;
+
+  // إبلاغ مسار الطالب بالنتيجة فور اكتمال الاختبار (مرة لكل نتيجة جديدة).
+  const reportedResult = useRef("");
+  useEffect(() => {
+    if (!isCompleted) { reportedResult.current = ""; return; }
+    const key = `${correctCount}/${mcqAndTfQuestions.length}`;
+    if (reportedResult.current === key) return;
+    reportedResult.current = key;
+    onResult?.((correctCount / mcqAndTfQuestions.length) * 100);
+  }, [isCompleted, correctCount, mcqAndTfQuestions.length, onResult]);
 
   return (
     <div className="space-y-6">

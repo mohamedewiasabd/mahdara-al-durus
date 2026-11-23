@@ -12,6 +12,8 @@ import {
   Database,
   Store,
   Trash2,
+  Users,
+  GraduationCap,
 } from "lucide-react";
 
 interface Props {
@@ -24,6 +26,8 @@ interface Props {
   onOpenDatabase: () => void;
   onOpenApps: () => void;
   onDeleteBookRequest?: (book: Book) => void;
+  appMode: "teacher" | "student";
+  onToggleMode: () => void;
 }
 
 export const MobileTopBar: React.FC<Props> = ({
@@ -36,6 +40,8 @@ export const MobileTopBar: React.FC<Props> = ({
   onOpenDatabase,
   onOpenApps,
   onDeleteBookRequest,
+  appMode,
+  onToggleMode,
 }) => {
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -155,6 +161,24 @@ export const MobileTopBar: React.FC<Props> = ({
 
         {/* Action Controls */}
         <div className="flex items-center gap-1 shrink-0">
+          {/* Mode Switch — المعلم / الطالب (كل منهما يعمل منفردًا) */}
+          <button
+            onClick={onToggleMode}
+            className={`flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-black transition-colors ${
+              appMode === "student"
+                ? "bg-violet-100 text-violet-700 hover:bg-violet-200"
+                : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+            }`}
+            title={appMode === "teacher" ? "التبديل إلى وضع الطالب" : "التبديل إلى وضع المعلم"}
+          >
+            {appMode === "teacher" ? (
+              <Users className="w-3.5 h-3.5" />
+            ) : (
+              <GraduationCap className="w-3.5 h-3.5" />
+            )}
+            <span>{appMode === "teacher" ? "المعلم" : "الطالب"}</span>
+          </button>
+
           {/* Our Apps */}
           <button
             onClick={onOpenApps}
