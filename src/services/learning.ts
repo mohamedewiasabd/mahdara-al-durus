@@ -51,6 +51,32 @@ const GIFTS: { icon: string; title: string; message: string }[] = [
   { icon: "🏅", title: "ميدالية الشجاعة", message: "الشجاعة أن تعيد المحاولة بعد الخطأ." },
 ];
 
+/**
+ * متجر هدايا المطوّر — هدايا افتراضية فقط، يُعدّل المطوّر قائمتها وتكلفتها هنا.
+ * التكلفة بالpoint؛ كل نشاط يمنح نقاطًا دائمة تُستبدل بهذه الهدايا.
+ */
+export interface DevGiftDef {
+  id: string;
+  icon: string;
+  title: string;
+  description: string;
+  cost: number;
+  tag?: string;
+}
+
+export const DEV_GIFTS: DevGiftDef[] = [
+  { id: "star", icon: "⭐", title: "نجمة ذهبية", description: "نجمة تلمع في خزانتك كلما تقدّمت.", cost: 20, tag: "الأقرب" },
+  { id: "balloon", icon: "🎈", title: "بالون احتفال", description: "ارفع بالونك في أي وقت احتفالًا بإنجازك.", cost: 25 },
+  { id: "rainbow", icon: "🌈", title: "قوس قزح", description: "تذكير جميل أن بعد المراجعة يظهر الضوء.", cost: 35 },
+  { id: "rocket", icon: "🚀", title: "صاروخ التقدّم", description: "مركبتك الخاصة في رحلة المذاكرة.", cost: 60 },
+  { id: "theme", icon: "🎨", title: "ثيم ألوان مميز", description: "مظهر جديد لواجهتك في وضع الطالب.", cost: 75 },
+  { id: "tune", icon: "🎵", title: "نغمة احتفال", description: "نغمة خاصة تُفتح مع كل هدية.", cost: 80 },
+  { id: "unicorn", icon: "🦄", title: "يونيكورن النجوم", description: "هدية نادرة للمذاكرين المتفوقين.", cost: 90, tag: "نادر" },
+  { id: "frame", icon: "🖼️", title: "إطار شارة ذهبي", description: "إطار فاخر يليق بشاراتك.", cost: 110 },
+  { id: "title", icon: "🏅", title: "لقب نجم الصف", description: "لقب يظهر بجانب اسمك في رحلتك.", cost: 150, tag: "مميز" },
+  { id: "mystery", icon: "🎁", title: "صندوق المفاجأة الكبرى", description: "هدية سرية اختارها المطوّر لك.", cost: 200, tag: "غامض" },
+];
+
 function todayKey(date = new Date()): string {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
@@ -170,7 +196,10 @@ export function emptyProgress(profileId: string): StudentProgress {
     completedLessons: [],
     badges: [],
     gifts: [],
+    redeemedGifts: [],
     history: [],
+    giftPoints: 0,
+    lifetimePoints: 0,
     lastActiveDate: "",
     streak: 0,
     dailyMission: freshMission(),
@@ -194,6 +223,16 @@ export async function getProgress(profileId: string): Promise<StudentProgress> {
     dirty = true;
   }
   if (typeof progress.winStreak !== "number") { progress.winStreak = 0; dirty = true; }
+  // ترحيل رصيد الهدايا: كل نقاط التعلّم السابقة تُصبح قابلة للاستبدال فلا يضيع شيء.
+  if (typeof progress.giftPoints !== "number") {
+    progress.giftPoints = progress.earnedXp || 0;
+    dirty = true;
+  }
+  if (typeof progress.lifetimePoints !== "number") {
+    progress.lifetimePoints = Math.max(progress.giftPoints, progress.earnedXp || 0);
+    dirty = true;
+  }
+  if (!Array.isArray(progress.redeemedGifts)) { progress.redeemedGifts = []; dirty = true; }
   if (dirty) await localDb.kvPut(PROGRESS_STORE, progress);
   return progress;
 }
@@ -310,6 +349,9 @@ export function summarize(
     completedCount: lessonStates.filter((s) => s.complete).length,
     badgesCount: progress.badges.length,
     giftsCount: progress.gifts.length,
+    giftPoints: progress.giftPoints || 0,
+    lifetimePoints: progress.lifetimePoints || 0,
+    redeemedGiftsCount: (progress.redeemedGifts || []).length,
     lessons: lessonStates,
     nextLessonId: next?.lessonId || null,
   };
@@ -330,6 +372,56 @@ function addXp(progress: StudentProgress, amount: number, text: string): void {
     progress.history.unshift({ id: uid("h"), text, xp: amount, at: new Date().toISOString() });
     progress.history = progress.history.slice(0, 60);
   }
+}
+
+/**
+ * نقاط الهدايا رصيد مستقل عن نقاط المستوى: تُجمع من كل نشاط ولا تُصفَّر عند الترقية،
+ * ولا تُنقص إلا عند استبدالها بهدية من متجر المطوّر.
+ */
+function addPoints(progress: StudentProgress, amount: number, text: string): void {
+  if (amount <= 0) return;
+  progress.giftPoints = (progress.giftPoints || 0) + amount;
+  progress.lifetimePoints = (progress.lifetimePoints || 0) + amount;
+  progress.history.unshift({ id: uid("p"), text: `🎁 ${text}`, xp: amount, at: new Date().toISOString() });
+  progress.history = progress.history.slice(0, 60);
+}
+
+/** إجمالي نقاط بيانات الطالب لدى المعلم (حضور/درجات/واجبات). */
+function signalTotals(profile: StudentProfile, ctx: SummaryContext) {
+  const ids = resolveStudentIds(profile, ctx.students);
+  let attendance = 0;
+  let grades = 0;
+  let homework = 0;
+  ctx.attendance.forEach((rec) => ids.forEach((id) => {
+    if (rec.records?.[id] === "present") attendance += 6;
+    else if (rec.records?.[id] === "late") attendance += 2;
+  }));
+  ctx.grades.forEach((g) => {
+    if (!ids.includes(g.studentId) || !g.maxScore) return;
+    grades += Math.min(10, Math.max(0, Math.round((g.score / g.maxScore) * 10)));
+  });
+  ctx.homework.forEach((hw) => {
+    if ((hw.submitted || []).some((id) => ids.includes(id))) homework += 8;
+  });
+  return { attendance, grades, homework, total: attendance + grades + homework };
+}
+
+/**
+ * يُستدعى عند تحميل مسار الطالب أو لوحة المعلم: يمنح نقاط هدايا عن أي بيانات معلم
+ * جديدة (حضور، درجة، واجب) مرة واحدة فقط، فتدخل «كل البيانات المتاحة» في الرصيد.
+ */
+export async function syncTeacherRewards(profile: StudentProfile, ctx: SummaryContext): Promise<number> {
+  const progress = await getProgress(profile.id);
+  const current = signalTotals(profile, ctx);
+  const previous = progress.countedSignals;
+  if (previous && previous.attendance === current.attendance
+    && previous.grades === current.grades && previous.homework === current.homework) return 0;
+
+  progress.countedSignals = current;
+  const gained = previous ? Math.max(0, current.total - previous.total) : current.total;
+  if (gained > 0) addPoints(progress, gained, "حضور ودرجات وواجبات جديدة من المعلم");
+  await saveProgress(progress);
+  return gained;
 }
 
 function evaluateBadges(
@@ -384,6 +476,9 @@ export interface LearningEventResult {
   missionXp: number;
   streak: number;
   streakBonus: number;
+  /** نقاط الهدايا المضافة في هذا الحدث — تحتسب دائمًا وتُحتفظ بها للاستبدال. */
+  pointsGained: number;
+  pointsBalance: number;
   weakQuiz: boolean;
   strongQuiz: boolean;
 }
@@ -394,6 +489,8 @@ interface EventExtras {
   streak?: number;
   streakBonus?: number;
   streakMilestone?: boolean;
+  /** نقاط مشاركة إضافية تُمنح مع كل نشاط حتى لو كانت نقاط المستوى صفرًا. */
+  points?: number;
   weakQuiz?: boolean;
   strongQuiz?: boolean;
 }
@@ -411,6 +508,9 @@ async function finishEvent(
   touchDay(progress);
   const bonusXp = (extras.missionXp || 0) + (extras.streakBonus || 0);
   addXp(progress, xpGained + bonusXp, text);
+  // كل نشاط يمنح نقاط هدايا: نقاط الإنجاز + مكافآت اليوم + نقاط المشاركة.
+  const pointsGained = Math.max(0, xpGained) + bonusXp + (extras.points || 0);
+  addPoints(progress, pointsGained, text);
   const summary = summarize(profile, progress, ctx);
   const levelAfter = summary.level;
   const newBadges = evaluateBadges(progress, summary, ctx, profile);
@@ -420,7 +520,7 @@ async function finishEvent(
   if (newBadges.length > 0) gifts.push(randomGift(`إنجاز جديد: ${newBadges[0].title}`));
   if (extras.missionDone) gifts.push(randomGift("مكافأة مهمة اليوم"));
   if (extras.streakMilestone) gifts.push(randomGift(`سلسلة ${extras.streak} انتصار`));
-  if (!gifts.length && xpGained >= 20 && Math.random() < 0.3) gifts.push(randomGift("مفاجأة بعد إجابات رائعة"));
+  if (!gifts.length && Math.random() < 0.18) gifts.push(randomGift("مفاجأة صغيرة من رحلتك اليوم"));
   if (gifts.length) progress.gifts.unshift(...gifts);
   if (extras.missionDone && progress.dailyMission) progress.dailyMission.claimed = true;
 
@@ -436,6 +536,8 @@ async function finishEvent(
     missionXp: extras.missionXp || 0,
     streak: extras.streak || progress.winStreak || 0,
     streakBonus: extras.streakBonus || 0,
+    pointsGained,
+    pointsBalance: progress.giftPoints || 0,
     weakQuiz: !!extras.weakQuiz,
     strongQuiz: !!extras.strongQuiz,
   };
@@ -455,6 +557,7 @@ export async function markLessonOpen(
   return finishEvent(profile, progress, ctx, 0, `قرأت «${lesson.title}»`, {
     missionXp: daily.reward ? MISSION_BONUS : 0,
     missionDone: daily.reward,
+    points: 5,
   });
 }
 
@@ -490,6 +593,7 @@ export async function recordQuiz(
     streak: win.streak,
     streakBonus: win.bonus,
     streakMilestone: win.milestone,
+    points: best >= 90 ? 15 : best >= 70 ? 10 : 4,
     weakQuiz: best > 0 && best < 70,
     strongQuiz: best >= 90,
   });
@@ -526,6 +630,7 @@ export async function recordFlashcards(
     streak: win.streak,
     streakBonus: win.bonus,
     streakMilestone: win.milestone,
+    points: 3 + Math.min(10, mastered - old),
   });
 }
 
@@ -537,4 +642,43 @@ export async function loadSummaryContext(books: Book[], lessons: Lesson[]): Prom
     localDb.kvGetAll("homework") as Promise<HomeworkItem[]>,
   ]);
   return { books, lessons, students, attendance, grades, homework };
+}
+
+// ─── متجر هدايا المطوّر ──────────────────────────────────────────────────
+export interface RedeemResult {
+  ok: boolean;
+  gift: DevGiftDef | null;
+  item: StudentProgress["redeemedGifts"][number] | null;
+  pointsLeft: number;
+  message: string;
+}
+
+/** استبدال رصيد النقاط بهدية افتراضية من كتالوج المطوّر — النقاط لا تضيع بل تتحول إلى هدية. */
+export async function redeemGift(profile: StudentProfile, giftId: string): Promise<RedeemResult> {
+  const progress = await getProgress(profile.id);
+  const balance = progress.giftPoints || 0;
+  const gift = DEV_GIFTS.find((g) => g.id === giftId);
+  if (!gift) return { ok: false, gift: null, item: null, pointsLeft: balance, message: "هذه الهدية غير متاحة الآن" };
+  if (balance < gift.cost) {
+    return { ok: false, gift, item: null, pointsLeft: balance, message: `تحتاج ${gift.cost - balance} نقطة إضافية لهذه الهدية` };
+  }
+
+  let { icon, title } = gift;
+  let message = gift.description;
+  if (gift.id === "mystery") {
+    const surprise = GIFTS[Math.floor(Math.random() * GIFTS.length)];
+    icon = surprise.icon; title = surprise.title; message = surprise.message;
+  }
+  if (!Array.isArray(progress.redeemedGifts)) progress.redeemedGifts = [];
+  const item = {
+    id: uid("redeem"), giftId: gift.id, icon, title, message,
+    cost: gift.cost, at: new Date().toISOString(),
+  };
+  progress.redeemedGifts.unshift(item);
+  progress.giftPoints = balance - gift.cost;
+  await saveProgress(progress);
+  return {
+    ok: true, gift, item, pointsLeft: progress.giftPoints,
+    message: `تم استبدال الهدية! تبقّى معك ${progress.giftPoints} نقطة للهدية القادمة`,
+  };
 }

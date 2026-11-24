@@ -1,15 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import confetti from "canvas-confetti";
 import {
-  ArrowRight, Award, BookOpen, CheckCircle2, ChevronRight, EyeOff, Flame, Gift,
-  GraduationCap, Lock, Map, Play, Sparkles, Star, Target, Trophy, UserRound, Users, X, Zap,
+  ArrowRight, Award, BookOpen, CheckCircle2, ChevronRight, Coins, EyeOff, Flame, Gift,
+  GraduationCap, Lock, Map, Play, ShoppingBag, Sparkles, Star, Store, Target, Trophy,
+  UserRound, Users, X, Zap,
 } from "lucide-react";
 import { Book, Lesson, StudentProfile, StudentProgress, ProgressSummary } from "../../types";
 import { localDb } from "../../services/db";
 import {
-  BADGES, LearningEventResult, SummaryContext, getActiveProfileId, getProfiles,
-  getProgress, loadSummaryContext, markLessonOpen, recordFlashcards,
-  recordQuiz, saveProfile, setActiveProfileId, summarize, xpForLevel,
+  BADGES, DEV_GIFTS, LearningEventResult, RedeemResult, SummaryContext, getActiveProfileId,
+  getProfiles, getProgress, loadSummaryContext, markLessonOpen, recordFlashcards,
+  redeemGift, recordQuiz, saveProfile, setActiveProfileId, summarize, syncTeacherRewards, xpForLevel,
 } from "../../services/learning";
 import { TabRendererSummary } from "../tabs/TabRendererSummary";
 import { TabRendererFlashcards } from "../tabs/TabRendererFlashcards";
@@ -58,6 +59,8 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
   const [lessonTab, setLessonTab] = useState<LessonTab>("summary");
   const [celebration, setCelebration] = useState<LearningEventResult | null>(null);
   const [giftRevealed, setGiftRevealed] = useState(false);
+  const [giftTab, setGiftTab] = useState<"shop" | "mine">("shop");
+  const [redeemResult, setRedeemResult] = useState<RedeemResult | null>(null);
   const [showProfiles, setShowProfiles] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAvatar, setNewAvatar] = useState("🦊");
@@ -73,6 +76,8 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
     const storedId = getActiveProfileId();
     const active = target || allProfiles.find((p) => p.id === storedId) || allProfiles[0] || null;
     if (active) setActiveProfileId(active.id);
+    // حضور/درجات/واجبات المعلم تغذّي رصيد الهدايا أيضًا — مرة واحدة لكل بيانات جديدة.
+    if (active) await syncTeacherRewards(active, context);
     const prog = active ? await getProgress(active.id) : null;
     setBooks(allBooks);
     setLessons(allLessons);
@@ -147,6 +152,18 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
     }
   };
 
+  const handleRedeem = async (giftId: string) => {
+    if (!profile) return;
+    const result = await redeemGift(profile, giftId);
+    if (result.ok) {
+      setRedeemResult(result);
+      confetti({ particleCount: 120, spread: 90, origin: { y: 0.5 } });
+      await refreshProgress();
+    } else {
+      setToast(result.message);
+    }
+  };
+
   const lessonContent = useMemo(() => {
     if (!selectedLesson) return null;
     return selectedLesson.generatedTabs || {};
@@ -198,8 +215,8 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
             </div>
             <h1 className="text-xl font-black text-slate-900 mt-4">أهلًا بك في مسارك!</h1>
             <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              تدرّج في دروسك حسب مستواك، اجمع النقاط والشارات، وافتح هدايا مفاجئة كلما تقدّمت.
-              كل شيء محفوظ على هذا الجهاز ولا تحتاج أي حساب.
+              تدرّج في دروسك حسب مستواك، اجمع النقاط والشارات، واستبدل نقاطك بهدايا من المطوّر.
+              رصيدك محفوظ دائمًا ولا يُصفَّر — وكل شيء على هذا الجهاز بلا حساب.
             </p>
           </div>
           <div className="bg-white rounded-2xl border border-slate-200 p-5 space-y-4 shadow-xs">
@@ -239,7 +256,11 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
             title="تبديل الملف"><span>{profile.avatar}</span></button>
           <div className="min-w-0 flex-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="font-black text-sm truncate">{profile.name}</p>
+              <p className="font-black text-sm truncate">{profile.name}
+                {(progress?.redeemedGifts || []).some((g) => g.giftId === "title") && (
+                  <span className="mr-1 text-[9px] bg-amber-300 text-amber-950 rounded px-1.5 py-0.5">🏅 نجم الصف</span>
+                )}
+              </p>
               <button onClick={onBackToTeacher} className="text-[10px] bg-white/15 hover:bg-white/25 rounded-lg px-2 py-1 font-bold flex items-center gap-1 shrink-0">
                 <GraduationCap className="w-3 h-3" /> المعلم
               </button>
@@ -251,6 +272,11 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
               <span className="text-[10px] text-emerald-50 flex items-center gap-1">
                 <Zap className="w-3 h-3" /> {summary.totalXp} نقطة
               </span>
+              <button onClick={() => { setGiftTab("shop"); setView("gifts"); }}
+                title="متجر هدايا المطوّر"
+                className="text-[10px] bg-white/20 hover:bg-white/30 rounded-full px-2 py-0.5 font-black flex items-center gap-1">
+                <Coins className="w-3 h-3 text-amber-200" /> {summary.giftPoints} 🎁
+              </button>
               {summary.streak > 0 && <span className="text-[10px] text-emerald-50 flex items-center gap-1">🔥 {summary.streak} أيام</span>}
               {(progress?.winStreak || 0) > 0 && (
                 <span className="text-[10px] text-amber-200 flex items-center gap-1"><Flame className="w-3 h-3" /> {progress.winStreak} انتصار</span>
@@ -393,6 +419,16 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
               </p>
               <div className="h-1.5 mt-2 rounded-full bg-slate-100 overflow-hidden">
                 <div className="h-full bg-violet-500 rounded-full transition-all duration-500" style={{ width: `${pctInLevel}%` }} />
+              </div>
+              <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2">
+                <Coins className="w-4 h-4 text-amber-500 shrink-0" />
+                <p className="text-[10px] text-slate-600 flex-1 leading-relaxed">
+                  رصيدك <b className="text-amber-600">{summary.giftPoints} نقطة هدية</b> محفوظة دائمًا — استبدلها هدايا من المطوّر.
+                </p>
+                <button onClick={() => { setGiftTab("shop"); setView("gifts"); }}
+                  className="shrink-0 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-black px-2.5 py-2">
+                  المتجر ←
+                </button>
               </div>
             </div>
 
@@ -544,25 +580,104 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
         {view === "gifts" && (
           <>
             <div className="rounded-2xl bg-linear-to-r from-violet-500 to-fuchsia-600 text-white p-4">
-              <p className="font-black text-sm flex items-center gap-2"><Gift className="w-5 h-5" /> صندوق المفاجآت</p>
-              <p className="text-[11px] mt-1">كل هدية وصلتك بعد إنجاز أو ترقية مستوى — {summary.giftsCount} هدية حتى الآن</p>
+              <div className="flex items-center gap-2">
+                <Store className="w-5 h-5" />
+                <p className="font-black text-sm">متجر هدايا المطوّر</p>
+                <Coins className="w-4 h-4 text-amber-200 mr-auto" />
+                <span className="text-sm font-black">{summary.giftPoints}</span>
+              </div>
+              <p className="text-[11px] mt-1 leading-relaxed">
+                رصيدك يُجمع من كل درس واختبار وبطاقة ومهمة وحضور — ولا يُصفَّر أبدًا.
+                جمعت {summary.lifetimePoints} نقطة منذ البداية واستبدلت {summary.redeemedGiftsCount} هدية.
+              </p>
             </div>
-            {progress?.gifts.length ? (
+
+            <div className="flex gap-1 bg-white rounded-xl border border-slate-200 p-1">
+              <button onClick={() => setGiftTab("shop")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-black transition-colors ${
+                  giftTab === "shop" ? "bg-violet-600 text-white" : "text-slate-500"
+                }`}>
+                <Store className="w-3.5 h-3.5" /> متجر الهدايا
+              </button>
+              <button onClick={() => setGiftTab("mine")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-[11px] font-black transition-colors ${
+                  giftTab === "mine" ? "bg-violet-600 text-white" : "text-slate-500"
+                }`}>
+                <ShoppingBag className="w-3.5 h-3.5" /> خزانتي ({summary.giftsCount + summary.redeemedGiftsCount})
+              </button>
+            </div>
+
+            {giftTab === "shop" ? (
               <div className="grid grid-cols-2 gap-3">
-                {progress.gifts.map((gift) => (
-                  <div key={gift.id} className="bg-white rounded-2xl border border-amber-200 p-4 text-center shadow-xs">
-                    <div className="text-3xl">{gift.icon}</div>
-                    <p className="font-black text-xs text-slate-800 mt-2">{gift.title}</p>
-                    <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{gift.message}</p>
-                    <p className="text-[9px] text-amber-600 mt-2 font-bold">{gift.reason} · {new Date(gift.at).toLocaleDateString("ar-EG")}</p>
-                  </div>
-                ))}
+                {DEV_GIFTS.map((gift) => {
+                  const affordable = summary.giftPoints >= gift.cost;
+                  const owned = (progress?.redeemedGifts || []).some((g) => g.giftId === gift.id);
+                  return (
+                    <div key={gift.id} className="bg-white rounded-2xl border border-slate-200 p-3 flex flex-col shadow-2xs">
+                      <div className="flex items-start justify-between gap-1">
+                        <div className="text-3xl">{gift.icon}</div>
+                        {gift.tag && (
+                          <span className="text-[8px] bg-violet-100 text-violet-700 rounded-full px-2 py-0.5 font-black shrink-0">{gift.tag}</span>
+                        )}
+                      </div>
+                      <p className="font-black text-xs text-slate-800 mt-2">{gift.title}</p>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-relaxed flex-1">{gift.description}</p>
+                      {owned && <p className="text-[9px] text-emerald-600 font-bold mt-1">✓ في خزانتك</p>}
+                      <button disabled={!affordable} onClick={() => void handleRedeem(gift.id)}
+                        className={`mt-3 w-full rounded-xl text-[11px] font-black py-2 flex items-center justify-center gap-1 transition-all active:scale-[0.98] ${
+                          affordable ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-400"
+                        }`}>
+                        <Coins className="w-3 h-3" />
+                        {affordable ? `استبدل بـ ${gift.cost}` : `ينقص ${gift.cost - summary.giftPoints} نقطة`}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             ) : (
-              <div className="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center">
-                <Gift className="w-10 h-10 text-slate-300 mx-auto" />
-                <p className="text-xs text-slate-500 mt-3">لم تصل هدايا بعد. أكمل اختبارًا أو اجمع شارة وستفاجئك هدية!</p>
-              </div>
+              <>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4">
+                  <p className="font-black text-xs text-slate-800 flex items-center gap-2 mb-3">
+                    <ShoppingBag className="w-4 h-4 text-violet-500" /> هدايا استبدلتها بالنقاط ({summary.redeemedGiftsCount})
+                  </p>
+                  {progress?.redeemedGifts.length ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {progress.redeemedGifts.map((item) => (
+                        <div key={item.id} className="rounded-xl bg-violet-50 border border-violet-200 p-3 text-center">
+                          <div className="text-3xl">{item.icon}</div>
+                          <p className="font-black text-[11px] text-slate-800 mt-1.5">{item.title}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{item.message}</p>
+                          <p className="text-[9px] text-violet-600 font-bold mt-2">-{item.cost} نقطة · {new Date(item.at).toLocaleDateString("ar-EG")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-slate-400 text-center py-4">لم تستبدل هدايا بعد — اختر هدية من المتجر.</p>
+                  )}
+                </div>
+                <div className="bg-white rounded-2xl border border-amber-200 p-4">
+                  <p className="font-black text-xs text-slate-800 flex items-center gap-2 mb-3">
+                    <Gift className="w-4 h-4 text-amber-500" /> مفاجآت وصلتك مجانًا ({summary.giftsCount})
+                  </p>
+                  {progress?.gifts.length ? (
+                    <div className="grid grid-cols-2 gap-3">
+                      {progress.gifts.map((gift) => (
+                        <div key={gift.id} className="rounded-xl border border-amber-200 p-3 text-center">
+                          <div className="text-3xl">{gift.icon}</div>
+                          <p className="font-black text-[11px] text-slate-800 mt-1.5">{gift.title}</p>
+                          <p className="text-[10px] text-slate-500 mt-1 leading-relaxed">{gift.message}</p>
+                          <p className="text-[9px] text-amber-600 font-bold mt-2">{gift.reason} · {new Date(gift.at).toLocaleDateString("ar-EG")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-4">
+                      <Gift className="w-8 h-8 text-slate-300 mx-auto" />
+                      <p className="text-[11px] text-slate-400 mt-2">لم تصل هدايا بعد. أكمل اختبارًا أو اجمع شارة وستفاجئك هدية!</p>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </>
         )}
@@ -637,6 +752,11 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
                   </div>
                 )}
                 {celebration.xpGained > 0 && <p className="text-xs text-emerald-700 font-bold mt-3">+{celebration.xpGained} نقطة ⚡</p>}
+                {celebration.pointsGained > 0 && (
+                  <p className="text-[11px] bg-amber-50 text-amber-700 rounded-lg px-2 py-1.5 mt-2 font-bold">
+                    🎁 +{celebration.pointsGained} نقطة هدية — رصيدك الآن {celebration.pointsBalance}
+                  </p>
+                )}
                 {celebration.missionDone && (
                   <p className="text-[11px] bg-amber-50 text-amber-700 rounded-lg px-2 py-1.5 mt-2 font-bold">✅ مهمة اليوم مكتملة +{celebration.missionXp} نقطة</p>
                 )}
@@ -660,6 +780,27 @@ export const StudentApp: React.FC<Props> = ({ onBackToTeacher }) => {
                 </button>
               </>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* احتفال استبدال هدية من متجر المطوّر */}
+      {redeemResult?.ok && redeemResult.item && (
+        <div className="absolute inset-0 z-70 bg-slate-950/60 flex items-center justify-center p-5"
+          onClick={() => setRedeemResult(null)}>
+          <div className="w-full max-w-xs bg-white rounded-3xl p-6 text-center shadow-2xl animate-in fade-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}>
+            <div className="text-6xl animate-bounce">{redeemResult.item.icon}</div>
+            <h3 className="font-black text-lg text-slate-900 mt-4">هديتك من المطوّر!</h3>
+            <p className="font-bold text-sm text-violet-700 mt-2">{redeemResult.item.title}</p>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">{redeemResult.item.message}</p>
+            <p className="text-[11px] text-amber-700 bg-amber-50 rounded-lg py-2 mt-4 font-bold">
+              {redeemResult.message}
+            </p>
+            <button onClick={() => { setRedeemResult(null); setGiftTab("mine"); }}
+              className="mt-5 w-full rounded-xl bg-violet-600 text-white font-bold text-sm py-3">
+              شاهد هداياي في الخزانة
+            </button>
           </div>
         </div>
       )}

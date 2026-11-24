@@ -37,6 +37,7 @@ import {
   loadSummaryContext,
   saveProfile,
   summarize,
+  syncTeacherRewards,
   xpForLevel,
 } from "../../services/learning";
 import {
@@ -286,6 +287,7 @@ function AchievementsSection({ books, lessons }: { books: Book[]; lessons: Lesso
     setClassStudents(teacherStudents);
     const next = await Promise.all(
       profiles.map(async (profile) => {
+        await syncTeacherRewards(profile, ctx);
         const progress = await getProgress(profile.id);
         return { profile, progress, summary: summarize(profile, progress, ctx) };
       })
@@ -409,6 +411,9 @@ function AchievementsSection({ books, lessons }: { books: Book[]; lessons: Lesso
               : ""}
           </p>
         )}
+        <p className="text-[10px] text-amber-100 mt-1 text-center">
+          🎁 رصيد الهدايا: {summary.giftPoints} نقطة · استبدل {summary.redeemedGiftsCount} هدية
+        </p>
       </div>
 
       {/* مسار الدروس */}

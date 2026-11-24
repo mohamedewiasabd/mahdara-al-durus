@@ -243,6 +243,14 @@ export interface StudentProgress {
   badges: { id: string; at: string }[];
   gifts: { id: string; icon: string; title: string; message: string; reason: string; at: string }[];
   history: { id: string; text: string; xp: number; at: string }[];
+  /** رصيد نقاط الهدايا القابل للاستبدال — لا يُصفَّر أبدًا ولا ينقص إلا عند الاستبدال. */
+  giftPoints: number;
+  /** إجمالي نقاط الهدايا المكتسبة منذ البداية (للعرض والتحفيز، لا ينقص). */
+  lifetimePoints: number;
+  /** هدايا المطوّر التي استبدلها الطالب برصيده. */
+  redeemedGifts: { id: string; giftId: string; icon: string; title: string; message: string; cost: number; at: string }[];
+  /** ما حصل مقابله من بيانات المعلم — لمنع احتساب الحضور/الدرجات/الواجبات مرتين. */
+  countedSignals?: { attendance: number; grades: number; homework: number; total: number };
   lastActiveDate: string;
   streak: number;
   /** مهمة يومية متجددة تمنح مكافأة غامضة عند إتمامها — تُعيد الطالب يوميًا. */
@@ -287,6 +295,9 @@ export interface ProgressSummary {
   completedCount: number;
   badgesCount: number;
   giftsCount: number;
+  giftPoints: number;
+  lifetimePoints: number;
+  redeemedGiftsCount: number;
   lessons: LessonJourneyState[];
   nextLessonId: string | null;
 }
